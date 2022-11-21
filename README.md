@@ -11,5 +11,5 @@
 ------
 
 <font size = 5>基于koishi开发的方便网团使用的掷骰插件。</font></br>
-<font size = 5>图标由画师<button typr="button" title="QQ:1061394518">小猫头鹰</button>绘制</font>
+<font size = 5>图标由画师<a title="QQ:1061394518">小猫头鹰</a>绘制</font>
 </div>
