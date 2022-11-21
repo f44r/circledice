@@ -43,7 +43,7 @@ function Dice_analyze(Arr){
 function Dice_return(Dice){
   let Dice_Arr = Dice_parsing(Dice.dice)
   Dice_Arr = Dice_analyze(Dice_Arr)
-  let pattErr = /[^0-9=\-*\/]/i
+  let pattErr = /[^0-9+\-*\/]/i
   if(!pattErr.test(Dice_Arr.join(""))){
     let fun = new Function("return " + Dice_Arr.join(""))
     if(Dice_Arr.length > 2){
