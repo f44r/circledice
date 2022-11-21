@@ -10,5 +10,6 @@
 
 ------
 
-<font size = 5>基于koishi开发一个方便网团使用骰子机器人。</font>
+<font size = 5>基于koishi开发的方便网团使用的掷骰插件。</font></br>
+<font size = 5>图标由画师<kbd title="QQ:1061394518">小猫头鹰</kbd>绘制</font>
 </div>
