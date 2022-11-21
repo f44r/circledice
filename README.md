@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="160" src="https://raw.githubusercontent.com/FlameTEXT/CircleDICE/main/C%20DICE.png" style="zoom:30%;" />
+<img width="160" src="C%20DICE.png" style="zoom:30%;" />
 
 
 
