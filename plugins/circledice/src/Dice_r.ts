@@ -92,7 +92,9 @@ function Dice_msg(message){
     }
     return Dice_ter(Dice)
   }else{
-     return "请使用空格隔开骰点式与骰点理由，不然可能解析错误哦~"
+    Dice.result = message
+    Dice.dice = "1d100"
+    return Dice_ter(Dice)
   }
 }
 
