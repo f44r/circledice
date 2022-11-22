@@ -9,7 +9,7 @@
 <font size = 10>CircleDice</font>
 
 ------
-基于`koishi`开发的方便网团使用的掷骰插件。</br>
+基于<a href="https://github.com/koishijs/koishi">Koishi</a>开发的方便网团使用的掷骰插件。</br>
 本项目的名字来源于</br>
 <a href="https://zh.wikipedia.org/wiki/%E5%9C%86%E6%A1%8C%E9%AA%91%E5%A3%AB">·圆桌议会·</a></br>
 圆桌代表与会者具有平等的权利。 </br>
