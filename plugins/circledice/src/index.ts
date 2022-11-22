@@ -1,6 +1,6 @@
 import { Context, Schema } from 'koishi'
 import * as Dice_r from './Dice_r'
-import * as Dice_st from './Dice_st'
+import * as Dice_pc from './Dice_pc'
 
 export const name = 'circledice'
 
@@ -14,7 +14,7 @@ export const Config = Schema.object({
 
 export function apply(ctx: Context, config: Config) {
   ctx.plugin(Dice_r)
-  ctx.plugin(Dice_st)
+  ctx.plugin(Dice_pc)
 
   ctx.command('uploadpc [message]')
     .action((_, message) => {
