@@ -1,16 +1,11 @@
-import { Context, Schema } from 'koishi'
-import * as Dice_r from './Dice_r'
-import * as Dice_pc from './Dice_pc'
+import { Context, Logger, Schema } from 'koishi'
+import * as Dice_r from './Dice_r.ts'
+import * as Dice_pc from './Dice_pc.ts'
+import { Config } from './config.ts'
 
 export const name = 'circledice'
 
-export interface Config {
-  uploadPC: string
-}
-
-export const Config = Schema.object({
-  uploadPC: Schema.string().default(),
-})
+export { Config }
 
 export function apply(ctx: Context, config: Config) {
   ctx.plugin(Dice_r)
@@ -18,6 +13,8 @@ export function apply(ctx: Context, config: Config) {
 
   ctx.command('uploadpc [message]')
     .action((_, message) => {
+      let log = new Logger('circledice <<')
+      log.info(`[${_.session.userId}]${_.session.content}`)
       _.session.onebot.uploadGroupFile(_.session.guildId, config.uploadPC, "COC7空白卡.xlsx")
     })
 }
