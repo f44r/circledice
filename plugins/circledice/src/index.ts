@@ -1,4 +1,5 @@
 import { Context, Logger, Schema } from 'koishi'
+import { Config } from './config'
 import * as Dice_r from './Dice_r'
 import * as Dice_pc from './Dice_pc'
 import * as Dice_log from './Dice_log'
@@ -6,9 +7,7 @@ import * as Dice_init from './Dice_init'
 
 export const name = 'circledice'
 
-export interface Config {
-  uploadPC: string
-}
+export { Config }
 
 export function apply(ctx: Context, config: Config) {
   ctx.plugin(Dice_r)
