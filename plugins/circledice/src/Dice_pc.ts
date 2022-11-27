@@ -1,6 +1,6 @@
 import { Context, Logger, Schema } from 'koishi'
 import { setPcskill } from '../lib/setPcskill'
-import { Config } from './config.ts'
+import { Config } from './config'
 import { Dice, Pc, GameSpace } from './Dice_class'
 
 export const name = 'Dice_st'
@@ -21,10 +21,10 @@ export function apply(ctx: Context, config: Config) {
   ctx.model.extend('Pc', {
     id: 'unsigned',
     name: 'string',
-    skill: 'list',
-    poss: 'list',
+    skill: 'json',
+    poss: 'json',
     hiy: 'json',
-    att: 'list',
+    att: 'json',
     rule: 'string',
     token: 'string',
     version: 'unsigned',
@@ -44,8 +44,7 @@ export function apply(ctx: Context, config: Config) {
       let user: any = {}
       user.pl = (await ctx.database.getUser(_.session.platform, _.session.userId)).pl
       let skill = setPcskill(_.session, message)
-      skill.shift()
-      pc.skill = skill
+      pc.skill = skill[1]
       pc.poss = []
       pc.hiy = {}
       pc.att = []
@@ -76,8 +75,12 @@ export function apply(ctx: Context, config: Config) {
           pc.rule = Channel.GameSpace.set.rules
         }
       }
+      
+      let [dice] = await ctx.database.get('Dice', { id: 1 })
+      await ctx.database.set('Dice', { id: 1 }, { maxLogId: dice.maxPcId + 1 })
+      pc.id = dice.maxPcId
       let pcall: any = await ctx.database.create('Pc', pc)
-      return JSON.stringify(pcall)
+      return //JSON.stringify(pcall)
 //      user.pl.normal[pcall.id] = pcall.name
 //      Channem.GameSpace.pclist[_.session.guildId] = pcall.id
 //      await ctx.database.setUser(_.session.platform, _.session.userId, user)
