@@ -1,6 +1,7 @@
 // 没用，但能消灭 ts 报错，提供一些聊胜于无的提示
 
 interface Dice {
+    id?:number,
     lastClearTime: number
     maxPcId: number
     maxLogId: number
