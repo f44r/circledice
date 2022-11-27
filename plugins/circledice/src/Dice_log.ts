@@ -10,7 +10,7 @@ export function apply(ctx: Context) {
         .option('get', '-g [id] ')
         .usage('记录日志指令')
         .action((_, message) => {
-            ctx.logger('CD-log <<').info(_.args, _.options.on)
+            ctx.logger('CD-log <<').info(_.args)
             if (_.options.new) _.args = ['new', _.options.new];
             if (_.options.on) _.args = ['on', _.options.on];
             if (_.options.get) _.args = ['get', _.options.get];
@@ -19,7 +19,7 @@ export function apply(ctx: Context) {
 }
 
 function Dice_log(argv: Argv, ctx: Context) {
-    //if (argv.session.subsubtype === 'private'){return argv.session.send('这里只有你我二人，有何意义？')}
+    if (argv.session.subsubtype === 'private'){return argv.session.send('这里只有你我二人，有何意义？')}
     switch (argv.args[0]) {
         case 'new':
             DiceLognew(argv, ctx)
@@ -84,13 +84,12 @@ async function DiceLogon(argv: Argv, ctx: Context) {
     if (GameSpaceData.GameSpace.loglist.find(logis => logis.tag == true)) {
         return argv.session.send('已有开启的 log .')
     };
-
-    const id = argv.args[1] || GameSpaceData.GameSpace.hiy.lastlogid
-    GameSpaceData.GameSpace.loglist[GameSpaceData.GameSpace.loglist.map(logis => logis.logid).indexOf(id)].tag = true
+    const id:number = argv.args[1] || GameSpaceData.GameSpace.hiy.lastlogid
+    GameSpaceData.GameSpace.loglist[GameSpaceData.GameSpace.loglist.map(logis => logis.logid).indexOf(Number(id))].tag = true
     await ctx.database.set('channel', { id: argv.session.channelId },
     {"GameSpace.hiy.lastlogid": id,'GameSpace.loglist': GameSpaceData.GameSpace.loglist })
 
-    argv.session.send(argv.args[1] ? `那么，${argv.args[1]}，开始记录！` : '记录开始！')
+    argv.session.send('记录开始！')
 }
 
 async function DiceLogoff(argv: Argv, ctx: Context) {
@@ -98,22 +97,18 @@ async function DiceLogoff(argv: Argv, ctx: Context) {
     GameSpaceData.GameSpace.loglist.forEach((logis)=>logis.tag = false)
     await ctx.database.set('channel', { id: argv.session.channelId },
     {'GameSpace.loglist': GameSpaceData.GameSpace.loglist})
+    argv.session.send('所有 Log 已关闭。')
 }
 
 async function DiceLoglist(argv: Argv, ctx: Context) {
-    let text = ''
+    let text = '> loglist\n'
     let [GameSpaceData] = await ctx.database.get('channel',{id:argv.session.channelId})
     GameSpaceData.GameSpace.loglist.forEach((logis)=>{
-        text = `${logis.logid}-${logis.name}-${logis.tag}`
+        text += `${logis.logid} | ${logis.name} - ${logis.tag?'开':'关'}\n`
     })
     argv.session.send(text)
 }
 
-async function DiceLogget(argv: Argv, ctx: Context) {
-
-    
-    ctx.logger('>').error
-    (
-        await argv.session.send(segment('file',{url:'file:///C:\\Users\\DELL\\Desktop\\top\\doc\\1.txt'}))
-    )
+async function DiceLogget(argv: Argv, ctx: Context) { 
 }
+ 
