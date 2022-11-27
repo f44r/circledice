@@ -1,13 +1,16 @@
 import { Context, Schema, Logger, Argv } from 'koishi'
-import { Dice, Pc, GameSpace } from './Dice_class'
+import { Dice, Pc, GameSpace, Gamelog } from './Dice_class'
 import data from './Dice_data'
 import { Config } from './config'
 
 declare module 'koishi' {
     interface Tables {
-        Dice: Dice
+        Dice: Dice,
+        Gamelog: Gamelog,
+        Recall: Gamelog
     }
 }
+
 
 export function apply(ctx: Context, config: Config) {
     ctx.model.extend('Dice', {
@@ -15,10 +18,14 @@ export function apply(ctx: Context, config: Config) {
         'lastClearTime': 'unsigned',
         'maxLogId': 'unsigned',
         'maxPcId': 'unsigned'
-    });
+    }, { primary: 'id' });
+    ctx.model.extend('Gamelog', {
+        id: 'unsigned',
+        context: 'list'
+    })
 
     ctx.middleware(async (session) => {
-
+        // 初始化 Dice 表
         (async (ctx: Context) => {
             let [dice] = await ctx.database.get('Dice', { id: 1 })
             if (!dice) {
@@ -27,12 +34,12 @@ export function apply(ctx: Context, config: Config) {
                     maxPcId: 0,
                     lastClearTime: Date.now()
                 }
-                let ret = await ctx.database.set('Dice',1, dice)
-                ctx.logger('DICE >>').info(dice,ret)
+                await ctx.database.create('Dice', dice)
+                ctx.logger('DICE >>').info(dice)
             }
         })(ctx);
-
-        if (session.channelId && session.guildId) {
+        // 初始化 gamespace
+        if (session.subsubtype != 'private') {
             let GameSpaceData = await ctx.database.getChannel(session.platform, session.channelId, ['GameSpace'])
             if (!GameSpaceData) { return }
             if (!Object.keys(GameSpaceData.GameSpace).length) {
@@ -45,17 +52,25 @@ export function apply(ctx: Context, config: Config) {
                     'loglist': [],
                     'hiy': {
                         'lastTime': Date.now(),
-                        'lastlogid': ''
+                        'lastlogid': 0
                     },
                     'token': data.gettoken(session.channelId),
                     'version': 0
                 }
                 await ctx.database.setChannel(session.platform, session.channelId, { 'GameSpace': GameSpaceData.GameSpace })
-                ctx.logger('>>').info(`<${GameSpaceData.id}> |`, GameSpaceData.GameSpace)
+                ctx.logger('>>').info(`群组 ${GameSpaceData.id} |`, GameSpaceData.GameSpace)
             } else {
                 GameSpaceData.GameSpace.hiy.lastTime = Date.now()
                 await ctx.database.setChannel(session.platform, session.channelId, { 'GameSpace': GameSpaceData.GameSpace })
             }
         }
+        // 记录 recall log
+        /**
+         * code
+         */
+        // 记录 GameLog
+        /**
+         * code
+         */
     })
 }

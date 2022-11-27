@@ -31,17 +31,17 @@ interface GameSpace {
         rule: string
     }
     pclist?: {[userid: string]: Pc['id']},
-    loglist?: loglist[]
+    loglist?: logis[]
     hiy?: {
         lastTime: number,
-        lastlogid:string
+        lastlogid:number
     },
     token?: string
     version?: number
 }
 
-interface loglist {
-    logid?: string,
+interface logis {
+    logid?: number,
     name?: string,
     tag?: boolean
 }
@@ -58,4 +58,4 @@ interface Gamelog {
 }
 
 
-export { Dice, Pc, GameSpace, loglist, pl ,Gamelog}
+export { Dice, Pc, GameSpace, logis, pl ,Gamelog}
