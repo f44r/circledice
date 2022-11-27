@@ -41,12 +41,15 @@ export function apply(ctx: Context, config: Config) {
       log.info(`[${_.session.userId}]${_.session.content}`)
       let pc: any = new Object()
       const userId = _.session.userId
-      const user: any = await ctx.database.getUser(_.session.platform, _.session.userId)
-      pc.skill = setPcskill(_.session, message)
+      let user: any = {}
+      user.pl = (await ctx.database.getUser(_.session.platform, _.session.userId)).pl
+      let skill = setPcskill(_.session, message)
+      skill.shift()
+      pc.skill = skill
       pc.poss = []
       pc.hiy = {}
       pc.att = []
-      pc.token = user.pl.token
+//      pc.token = user.pl.token
       pc.version = 0
       if (_.session.guildId == undefined) {
         if (user.pl.normal == undefined) {
@@ -60,7 +63,8 @@ export function apply(ctx: Context, config: Config) {
           pc.rule = user.pl.rule
         }
       } else {
-        let Channel = await ctx.database.getChannel(_.session.platform, _.session.guildId)
+        let Channel: any = {}
+        Channel.GameSpace = (await ctx.database.getChannel(_.session.platform, _.session.guildId)).GameSpace
         if (Channel.GameSpace.pclist[userId] == undefined) {
           pc.name = "默认人物卡"
         } else {
@@ -71,24 +75,13 @@ export function apply(ctx: Context, config: Config) {
         } else {
           pc.rule = Channel.GameSpace.set.rules
         }
-        Channel.GameSpace.pclist[userId] = pc.name
       }
-
-
-      //    user.pl
-      await ctx.database.setChannel(_.session.platform, _.session.guildId, Channel)
-
+      let pcall: any = await ctx.database.create('Pc', pc)
+      return JSON.stringify(pcall)
+//      user.pl.normal[pcall.id] = pcall.name
+//      Channem.GameSpace.pclist[_.session.guildId] = pcall.id
+//      await ctx.database.setUser(_.session.platform, _.session.userId, user)
+//      await ctx.database.setChannel(_.session.platform, _.session.guildId, Channel)
+//      create无法获取id导致pcall.id为undefined，依据pcall结果可以基本确定数据处理没有问题
     })
-}
-
-async function setDatabase(object) {
-  await ctx.database.set('Pc', 'name', object.name)
-  await ctx.database.set('Pc', 'skill', object.skill)
-  await ctx.database.set('Pc', 'poss', object.poss)
-  await ctx.database.set('Pc', 'hiy', object.hiy)
-  await ctx.database.set('Pc', 'att', object.att)
-  await ctx.database.set('Pc', 'rule', object.rule)
-  await ctx.database.set('Pc', 'token', object.token)
-  await ctx.database.set('Pc', 'version', object.version)
-  return object.name
 }
