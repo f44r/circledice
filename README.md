@@ -3,6 +3,8 @@
 
 <div align="center">
 <img width="160" src="C%20DICE.png" style="zoom:30%;" />
+  
+  
 <font size = 10>CircleDice</font>
 
 ------
