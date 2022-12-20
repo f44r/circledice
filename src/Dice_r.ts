@@ -1,5 +1,5 @@
 import { Context, Logger } from 'koishi'
-import { Dice_return } from '../lib/rollDice'
+import { Dice_return } from './lib/rollDice'
 
 export const name = 'Dice_r'
 
