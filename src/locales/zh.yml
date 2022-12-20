@@ -1,0 +1,18 @@
+commands:
+  foo:
+    description: 指令描述
+    usage: |
+      指令用法
+      可以是多行文本
+    examples: |
+      foo qux
+      foo --bar qux
+    options:
+      bar: 选项描述
+    message:
+    # ctx.command 内部直接使用 session.text('.aaa')
+      aaa : bbb
+      中文: 也可以呢
+      rdwhy@random:
+        - dd
+        - 房地产

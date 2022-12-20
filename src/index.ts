@@ -6,6 +6,7 @@ import * as Dice_log from './Dice_log'
 import * as Dice_init from './Dice_init'
 
 export const name = 'circledice'
+export const using = ['database'] as const
 
 export { Config }
 

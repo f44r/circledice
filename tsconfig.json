@@ -3,7 +3,7 @@
     "rootDir": "src",
     "outDir": "lib",
     "target": "es2020",
-    "module": "commonjs",
+    "module": "ES6",
     "declaration": true,
     "composite": true,
     "incremental": true,
