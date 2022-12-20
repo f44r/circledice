@@ -1,5 +1,5 @@
 import { Context, Logger, Schema } from 'koishi'
-import { setPcskill } from '../lib/setPcskill'
+import { setPcskill } from './lib/setPcskill'
 import { Config } from './config'
 import { Dice, Pc, GameSpace } from './Dice_class'
 
