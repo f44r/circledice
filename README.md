@@ -1,11 +1,8 @@
+# koishi-plugin-dicetest
+[![npm](https://img.shields.io/npm/v/koishi-plugin-dicetest?style=flat-square)](https://www.npmjs.com/package/koishi-plugin-dicetest)
+
 <div align="center">
-
 <img width="160" src="C%20DICE.png" style="zoom:30%;" />
-
-
-
-
-
 <font size = 10>CircleDice</font>
 
 ------
