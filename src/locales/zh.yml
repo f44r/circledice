@@ -16,3 +16,14 @@ commands:
       rdwhy@random:
         - dd
         - 房地产
+  deck: 
+    description: 抽牌/抽卡
+    usage: deck 关键词
+    examples: 例如 deck 猫猫
+    options:
+      hide: 暗抽
+      show: 查看群池子内牌组情况
+      clear: 清空群池子
+    message:
+      reply@random:
+        - 多么好的一个奇迹
