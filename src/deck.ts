@@ -129,20 +129,21 @@ function toDeck(key: string, sInfo: any, deck: deck): string {
     let rex: RegExp;
     switch (deck.type) {
       case 'circle':
+        rex = /\{(\%|\$)(.+)\}/ // {%}不放回 {$}放回
         break;
       case 'json':
-        ['{player}','[$t玩家]','{nick}'].forEach(x => str.replaceAll(x,sInfo.name))
+        ['{player}', '[$t玩家]', '{nick}'].forEach(x => str.replaceAll(x, sInfo.name))
         rex = /\{(\%){0,}(.+)\}/ // {}不放回 {%}放回
         break;
       case 'yaml':
-        str.replaceAll('【name】',sInfo.name)
+        str.replaceAll('【name】', sInfo.name)
         rex = /\{(\%|\$)(.+)\}/ // {%}不放回 {$}放回
         break;
     }
     let tmp: RegExpMatchArray = str.match(rex)
     let i = 0
     while (tmp) {
-      if (i > 1000) str = '【嵌套过多】';
+      if (i > 1000) str = '牌组 ' + key + ' 嵌套过多';
       i++
       if (tmp[1]) str = str.replace(rex, toDeckpond(tmp[2], sInfo))
       str = str.replace(rex, toDeck(tmp[2], sInfo, deck))
@@ -150,7 +151,7 @@ function toDeck(key: string, sInfo: any, deck: deck): string {
     }
   }
 
-  if (str == '') return '末找到对应牌组'
+  if (str == '') return '末找到对应牌组：' + key
   return str
 }
 
