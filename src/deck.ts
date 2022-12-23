@@ -18,9 +18,13 @@ type deck = {
   version: string[] | string
   brief: string[] | string
   keys: string[]
-  value: Record<string, [string, number][]>
+  value: Record<string, [string, number][]> // 牌组名:[[牌,权重]...]
 }
 
+type sInfotype = {
+  name: string
+  pond: deck['value']
+}
 const decklist: deck[] = []
 
 function createDeck(type: string): deck {
@@ -104,9 +108,30 @@ function createDeckList(rootPath, andPath = '') {
   });
 }
 
-function toDeckpond(key: string, sInfo: any): string {
-
-  return ''
+function toDeckpond(key: string, sInfo: sInfotype, deck: deck): string {
+  let str = ''
+  if (key in sInfo.pond) {
+    let weight = 0, sign = 0
+    const deckIt = sInfo.pond[key]
+    deckIt.forEach(v => weight += v[1])
+    const target = Math.random() * weight
+    for (let k = 0; k < deckIt.length; k++) {
+      sign += deckIt[k][1]
+      if (sign > target) {
+        str = deckIt[k][0]
+        deckIt.splice(k, 1)
+        break;
+      }
+    }
+  } else {
+    if (key in deck.value) {
+      sInfo.pond[key] = deck.value[key]
+      str = toDeckpond(key, sInfo, deck)
+    } else {
+      return '末找到对应牌组：' + key
+    }
+  }
+  return str
 }
 
 function toDeck(key: string, sInfo: any, deck: deck): string {
@@ -145,7 +170,7 @@ function toDeck(key: string, sInfo: any, deck: deck): string {
     while (tmp) {
       if (i > 1000) str = '牌组 ' + key + ' 嵌套过多';
       i++
-      if (tmp[1]) str = str.replace(rex, toDeckpond(tmp[2], sInfo))
+      if (tmp[1]) str = str.replace(rex, toDeckpond(tmp[2], sInfo, deck))
       str = str.replace(rex, toDeck(tmp[2], sInfo, deck))
       tmp = str.match(rex)
     }
@@ -165,10 +190,10 @@ function Deck(key: string, sInfo: any): string {
 
 declare module 'koishi' {
   interface Channel {
-    decklist: [string, number][]
+    deckVal: deck['value']
   }
   interface User {
-    decklist: [string, number][]
+    deckVal: deck['value']
   }
 }
 
@@ -178,18 +203,18 @@ export function apply(ctx: Context) {
   })
 
   ctx.model.extend('channel', {
-    'decklist': 'json'
+    'deckVal': 'json'
   })
   ctx.model.extend('user', {
-    'decklist': 'json'
+    'deckVal': 'json'
   })
   ctx.command('deck <key>').alias('draw')
-    .channelFields(['decklist'])
-    .userFields(['decklist'])
+    .channelFields(['deckVal'])
+    .userFields(['deckVal'])
     .option('hide', '-h hide 暗抽')
     .action((_, key) => {
-      let sInfo = {
-        pond: _.session.subsubtype == 'private' ? _.session.user.decklist : _.session.channel.decklist,
+      let sInfo: sInfotype = {
+        pond: _.session.subsubtype == 'private' ? _.session.user.deckVal : _.session.channel.deckVal,
         name: _.session.username
       }
       let text = Deck(key, sInfo)
