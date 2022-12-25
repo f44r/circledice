@@ -170,7 +170,7 @@ function toDeck(key: string, sInfo: any, deck: deck): string {
     while (tmp) {
       if (i > 1000) str = '牌组 ' + key + ' 嵌套过多';
       i++
-      if (tmp[1]) str = str.replace(rex, toDeckpond(tmp[2], sInfo, deck))
+      if (!tmp[1] || tmp[1] == '$') str = str.replace(rex, toDeckpond(tmp[2], sInfo, deck))
       str = str.replace(rex, toDeck(tmp[2], sInfo, deck))
       tmp = str.match(rex)
     }
