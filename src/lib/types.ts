@@ -3,7 +3,7 @@
 /** 骰子数据 */
 export interface DiceData {
   /**之后所有的 version 属性都来自这里 供后续版本数据结构升级使用 */
-  version: number
+  version: string
   maxPcId: number
   maxLogID: number
 }
@@ -13,7 +13,7 @@ export interface GameSpace {
   /** circledice 相关指令开关 */
   botOn: boolean
   /** 来自 {@link DiceData.version} */
-  version: number
+  version: DiceData['version']
   /** 群组使用规则 */
   rule: string
   /** 群密钥 初始化时随机生成 */
@@ -29,7 +29,7 @@ export interface GameSpace {
 };
 
 /** 日志内容 */
-export interface logText {
+export interface LogText {
   /** 用户帐号ID */
   uid: string
   /** 角色名 */
@@ -39,7 +39,7 @@ export interface logText {
 };
 
 /**消息日志, 位于独立的`msglog`表*/
-export interface msglog {
+export interface MsgLog {
   /** 清理无用日志时使用*/
   islog: boolean
   /** 针对多个 bot 在一个群情况, 防止输出日志重复 */
@@ -47,7 +47,7 @@ export interface msglog {
   /** 提取特定日志使用*/
   logID?: number
   /** 来自群密钥 {@link GameSpace.token} */
-  logToken?: string
+  logToken?: GameSpace['token']
   /** 群组ID，格式 `平台-频道-群号`*/
   gid: string
   //** 处理撤回消息时使用 */
@@ -55,33 +55,37 @@ export interface msglog {
   /** 时间戳 根据时间 提取特定群日志&清理日志 时使用*/
   time: number
   /** 日志内容 类型：{@link logText} */
-  logText: logText
+  logText: LogText
 };
 
 /** 角色资源 */
-export interface ats {
+export interface Ats {
   /** 标识`ats.value`值的类型 */
-  type: number,
-  /** `type = ?`时的值\
- * =1：数字(角色技能)\
- * =2：数字(角色属性)\
- * =3：字符串(xdy)
+  type: 1|2|3,
+  /**
+| type | value                      | 用途                  |
+| ---- | -------------------------- | :-------------------- |
+| 1    | 数字                       | COC中的技能检定       |
+| 2    | 数字，但一般不可变（常量） | COC中属性             |
+| 3    | 字符串，为掷骰表达式       | COC中的DB，武器的伤害 |
  */
   value: any
 }
 
 /** 角色数据，储存在`cd-pc`表中 */
-export interface pc {
+export interface Character {
+  /** ID */
+  id:number
   /** 角色名 */
   name: string,
   /** 来自 {@link DiceData.version} */
-  version: number,
+  version: DiceData['version'],
   /** 是否将角色在`pclist`中删除(不显示) */
   clear: boolean 
-  /** 来自 {@link pl.token} */
-  token: string
+  /** 来自 {@link Player.token} */
+  token: Player['token']
   /** 根据`st文本`和{@link GameSpace.rule} 生成, `角色资源名->角色资源`*/
-  assets?: Map<string, ats>
+  assets?: Map<string, Ats>
   /** 计数检定的成败次数 检定项->次数*/
   history?: {
     success?: Map<string, number>,
@@ -90,9 +94,9 @@ export interface pc {
 }
 
 /** 玩家数据 位于`user`表 */
-export interface pl {
+export interface Player {
   /** 来自 {@link DiceData.version} */
-  version: number
+  version: DiceData['version']
   /** 个人密钥 初始化时生成 */
   token: string
   /** 全局默认 PC */
