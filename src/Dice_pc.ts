@@ -61,7 +61,7 @@ function newCha(text: string, rule = 'coc7') {
     text = text.slice(rexRet[0].length)
   }
 
-  let assets: Character['assets'] = new Map(),cache:any
+  let assets: Character['assets'] = new Map(), cache: any
   switch (rule) {
     case 'coc7':
       const tempAtt = [
@@ -78,23 +78,31 @@ function newCha(text: string, rule = 'coc7') {
         '驾驶': 1, '精神分析': 1, '心理学': 10, '骑术': 5, '妙手': 10, '侦查': 25,
         '潜行': 20, '生存': 10, '游泳': 20, '投掷': 20, '追踪': 10, '驯兽': 5
       }
-      Object.keys(tempSkill).forEach((x, y) => assets.set(x, { type: 1, value: Object.values(tempSkill)[y] }))
+      cache = Object.values(tempSkill)
+      Object.keys(tempSkill).forEach((x, y) => assets.set(x, { type: 1, value: cache[y] }))
 
       cache = textParse(text)
-      if(!cache[0]) return [false,cache[1]]
+      if (!cache[0]) return [false, cache[1]]
       cache = cache[1] as object
-      for(const key in cache){
-        switch (typeof cache[key]){
+      for (const key in cache) {
+        switch (typeof cache[key]) {
           case 'number':
-            assets.set(key,{type:1,value:cache[key]})
+            assets.set(key, { type: 1, value: cache[key] })
             break
         }
+      }
+
+      if (assets.has('闪避')) assets.set('闪避', { type: 1, value: assets.get('敏捷').value / 2 });
+      if (assets.has('db')) {
+        cache = showDB(assets.get('力量').value, assets.get('体型').value)
+        assets.set('db', { type: 2, value: cache[0] })
+        assets.set('体格', { type: 2, value: cache[1] })
       }
 
       break;
   }
   cha.assets = assets
-  return ['yes',cha]
+  return ['yes', cha]
 }
 
 /** 字符串解析函数\
@@ -110,19 +118,11 @@ function newCha(text: string, rule = 'coc7') {
   }
 }`
  */
-function textParse(text: string): [boolean, object] {
-  text = text.replace(/:|：/g, '=').replace(/（/g, '(').replace(/）/g, ')').replace(/，/g, ',')
+function textParse(text: string) {
+  text = text.replace(/:|：/g, '=').replace(/（/g, '(').replace(/）/g, ')').replace(/，|,|；/g, ';')
   let key = '', val = '', cache = []
-  let ret: object = {}, i = 0
-  function isSem(s1: string, s2: string) {
-    if (isNaN(Number(s1))) {
-      if (!isNaN(Number(s2))) {
-        return true
-      }
-    }
-    return false
-  }
-  function isEqu(s1: string, s2: string) {
+  let ret = {}, i = 0, tag = true
+  function isSem(s1: any, s2: any) {
     if (!isNaN(Number(s1))) {
       if (isNaN(Number(s2))) {
         return true
@@ -130,25 +130,89 @@ function textParse(text: string): [boolean, object] {
     }
     return false
   }
+  function isEqu(s1: any, s2: any) {
+    if (isNaN(Number(s1))) {
+      if (!isNaN(Number(s2))) {
+        return true
+      }
+    }
+    return false
+  }
+  function n2s(s: string) {
+    if (isNaN(Number(s))) {
+      return s
+    }
+    return Number(s)
+  }
+  
   while (i <= text.length) {
-    val += text[i]
     if (text[i] == '(') {
       key = val
+      val = ''
+      tag = false
+      i++
     }
     if (text[i] == ')') {
       cache = textParse(val)
-      if (cache[0]) {
-        return [false, cache[1]]
-      }
+      if (!cache[0]) return [false, cache[1]]
       ret[key] = cache[1]
+      key = ''
+      val = ''
+      tag = true
+      i++
     }
-    if (text[i] == '=' || isEqu(text[i], text[i + 1])) {
-      key = val
+    if (tag) {
+      if (text[i] == '=') {
+        key = val
+        val = ''
+        i++
+      } else if (isEqu(text[i], text[i + 1])) {
+        val += text[i]
+        key = val
+        val = ''
+        i++
+      }
+      if (key != '') {
+        if (text[i] == ';' || i == text.length) {
+          key = key.replace(';', '')
+          ret[key] = n2s(val)
+          val = ''
+          key = ''
+          i++
+        } else if (isSem(text[i], text[i + 1])) {
+          val += text[i]
+          ret[key] = n2s(val)
+          val = ''
+          key = ''
+          i++
+        }
+      }
     }
-    if (text == ';' || isSem(text[i], text[i + 1])) {
-      ret[key] = val
-    }
+    val += text[i]
     i++
   }
   return [true, ret]
+}
+
+
+function showDB(n1:number, n2:number) {
+  const n = n1 + n2;
+  const table = [
+    [2, 64, '-2', '-2'],
+    [65, 84, '-1', '-1'],
+    [85, 124, '0', '0'],
+    [125, 164, '1d4', '1'],
+    [165, 204, '1d6', '2'],
+    [205, 284, '2d6', '3'],
+    [285, 364, '3d6', '4'],
+    [365, 444, '4d6', '5'],
+    [455, 524, '5d6', '6']
+  ]
+  let ret = table.find(x => n >= x[0] && n <= x[1])
+  if (ret){
+    ret = ret.slice(-2)
+    return ret
+  }
+  const t = Math.ceil((n-524)/80)
+  return  [String(t+5) +'d6',String(t+6)]
 }
