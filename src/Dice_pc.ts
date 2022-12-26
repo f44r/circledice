@@ -1,14 +1,14 @@
 import { Context, Logger, Schema, Session } from 'koishi'
 import { Config } from './config'
 import { GameSpace, Character, Player } from './lib/types'
-import Api from './Api'
+import { dice } from './index'
 
 export const name = 'Dice_st'
 const log = new Logger('CircleDice/pc:')
 
 declare module 'koishi' {
   interface Tables {
-    'cd-pc': Character
+    circledice_pc: Character
   }
   interface User {
     player: Player
@@ -19,7 +19,7 @@ declare module 'koishi' {
 }
 
 export function apply(ctx: Context, config: Config) {
-  ctx.model.extend('cd-pc', {
+  ctx.model.extend('circledice_pc', {
     'id': 'unsigned',
     'name': 'string',
     'version': 'string',
@@ -45,11 +45,11 @@ export function apply(ctx: Context, config: Config) {
 
 function createCha(): Character {
   return {
-    'id': Api.newChaId(),
+    'id': dice.newChaId(),
     'name': 'knight',
     'clear': false,
     'token': '',
-    'version': Api.getDiceVersion()
+    'version': dice.version
   }
 }
 
@@ -144,7 +144,7 @@ function textParse(text: string) {
     }
     return Number(s)
   }
-  
+
   while (i <= text.length) {
     if (text[i] == '(') {
       key = val
@@ -195,7 +195,7 @@ function textParse(text: string) {
 }
 
 
-function showDB(n1:number, n2:number) {
+function showDB(n1: number, n2: number) {
   const n = n1 + n2;
   const table = [
     [2, 64, '-2', '-2'],
@@ -209,10 +209,10 @@ function showDB(n1:number, n2:number) {
     [455, 524, '5d6', '6']
   ]
   let ret = table.find(x => n >= x[0] && n <= x[1])
-  if (ret){
+  if (ret) {
     ret = ret.slice(-2)
     return ret
   }
-  const t = Math.ceil((n-524)/80)
-  return  [String(t+5) +'d6',String(t+6)]
+  const t = Math.ceil((n - 524) / 80)
+  return [String(t + 5) + 'd6', String(t + 6)]
 }

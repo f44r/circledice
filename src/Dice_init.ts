@@ -1,76 +1,72 @@
-import { Context, Schema, Logger, Argv } from 'koishi'
-import { Dice, Pc, GameSpace, Gamelog } from './Dice_class'
-import data from './Dice_data'
+import { Context, Schema, Logger, Argv, Session } from 'koishi'
 import { Config } from './config'
+import { Character, GameSpace, LogText, MsgLog } from './lib/types'
+import { dice } from './index'
 
 declare module 'koishi' {
     interface Tables {
-        Dice: Dice,
-        Gamelog: Gamelog,
-        Recall: Gamelog
+        msgLog: MsgLog
+        circledice_pc: Character
     }
 }
 
+const log = new Logger('CircleDice/Me:')
+
 
 export function apply(ctx: Context, config: Config) {
-    ctx.model.extend('Dice', {
+    ctx.model.extend('circledice_pc', {
         'id': 'unsigned',
-        'lastClearTime': 'unsigned',
-        'maxLogId': 'unsigned',
-        'maxPcId': 'unsigned'
-    }, { primary: 'id' });
-    ctx.model.extend('Gamelog', {
-        id: 'unsigned',
-        context: 'list'
+        'name': 'string',
+        'version': 'string',
+        'clear': 'boolean',
+        'token': 'string',
+        'assets': 'json',
+        'history': 'json'
+    })
+    ctx.model.extend('user', {
+        player: 'json',
+    })
+    ctx.model.extend('channel', {
+        gameSpace: 'json',
     })
 
+
     ctx.middleware(async (session) => {
-        // 初始化 Dice 表
-        (async (ctx: Context) => {
-            let [dice] = await ctx.database.get('Dice', { id: 1 })
-            if (!dice) {
-                dice = {
-                    maxLogId: 0,
-                    maxPcId: 0,
-                    lastClearTime: Date.now()
-                }
-                await ctx.database.create('Dice', dice)
-                ctx.logger('DICE >>').info(dice)
-            }
-        })(ctx);
+
         // 初始化 gamespace
         if (session.subsubtype != 'private') {
-            let GameSpaceData = await ctx.database.getChannel(session.platform, session.channelId, ['GameSpace'])
+            let GameSpaceData = await ctx.database.getChannel(session.platform, session.channelId, ['gameSpace'])
             if (!GameSpaceData) { return }
-            if (!Object.keys(GameSpaceData.GameSpace).length) {
-                GameSpaceData.GameSpace = {
-                    'set': {
-                        'bot': false,
-                        'rule': 'coc7'
-                    },
-                    'pclist': {},
-                    'loglist': [],
-                    'hiy': {
-                        'lastTime': Date.now(),
-                        'lastlogid': 0
-                    },
-                    'token': data.gettoken(session.channelId),
-                    'version': 0
-                }
-                await ctx.database.setChannel(session.platform, session.channelId, { 'GameSpace': GameSpaceData.GameSpace })
-                ctx.logger('>>').info(`群组 ${GameSpaceData.id} |`, GameSpaceData.GameSpace)
+            if (!Object.keys(GameSpaceData.gameSpace).length) {
+                GameSpaceData.gameSpace = createGameSpace(session.gid)
+                await ctx.database.setChannel(session.platform, session.channelId, { 'gameSpace': GameSpaceData.gameSpace })
+                ctx.logger('>>').info(`群组 ${GameSpaceData.id} |`, GameSpaceData.gameSpace)
             } else {
-                GameSpaceData.GameSpace.hiy.lastTime = Date.now()
-                await ctx.database.setChannel(session.platform, session.channelId, { 'GameSpace': GameSpaceData.GameSpace })
+                await ctx.database.setChannel(session.platform, session.channelId, { 'gameSpace': GameSpaceData.gameSpace })
             }
         }
-        // 记录 recall log
-        /**
-         * code
-         */
-        // 记录 GameLog
-        /**
-         * code
-         */
     })
+}
+
+function createGameSpace(gid): GameSpace {
+    return {
+        'botOn': true,
+        'token': dice.getToken(gid),
+        'rule': 'coc7',
+        'version': dice.version
+    }
+}
+function createMsgLog(session: Session, cha: Character): MsgLog {
+    return {
+        'botId': session.bot.selfId,
+        'gid': `${session.platform}-${session.channelId}-${session.guildId}`,
+        'mid': session.messageId,
+        'islog': false,
+        'time': session.timestamp,
+        'logText': {
+            'pcName': cha.name,
+            'uid': session.userId,
+            'context': session.content
+        }
+    }
 }

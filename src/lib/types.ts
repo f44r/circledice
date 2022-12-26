@@ -50,7 +50,7 @@ export interface MsgLog {
   logToken?: GameSpace['token']
   /** 群组ID，格式 `平台-频道-群号`*/
   gid: string
-  //** 处理撤回消息时使用 */
+  /** 处理撤回消息时使用 */
   mid: string
   /** 时间戳 根据时间 提取特定群日志&清理日志 时使用*/
   time: number
@@ -61,13 +61,16 @@ export interface MsgLog {
 /** 角色资源 */
 export interface Ats {
   /** 标识`ats.value`值的类型 */
-  type: 1|2|3,
+  type: 0|1|2|3|4|5,
   /**
 | type | value                      | 用途                  |
 | ---- | -------------------------- | :-------------------- |
 | 1    | 数字                       | COC中的技能检定       |
 | 2    | 数字，但一般不可变（常量） | COC中属性             |
 | 3    | 字符串，为掷骰表达式       | COC中的DB，武器的伤害 |
+| 4    | 字符串，是自然语言          | 背景简介          |
+| 5    | 对象，存有描述武器的属性    | COC 中的武器    |
+* *0 为类型不明*
  */
   value: any
 }
