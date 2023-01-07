@@ -1,8 +1,7 @@
 // 定义各种类型
 
-/** 骰子数据 */
-export interface DiceData {
-  /**之后所有的 version 属性都来自这里 供后续版本数据结构升级使用 */
+/** 骰子类 接口 注释见 `./src/DICE.ts` */
+export interface DiceType {
   version: string
   maxPcId: number
   maxLogID: number
@@ -12,8 +11,8 @@ export interface DiceData {
 export interface GameSpace {
   /** circledice 相关指令开关 */
   botOn: boolean
-  /** 来自 {@link DiceData.version} */
-  version: DiceData['version']
+  /** 来自 {@link DiceType.version} */
+  version: DiceType['version']
   /** 群组使用规则 */
   rule: string
   /** 群密钥 初始化时随机生成 */
@@ -70,7 +69,7 @@ export interface Ats {
 | 3    | 字符串，为掷骰表达式       | COC中的DB，武器的伤害 |
 | 4    | 字符串，是自然语言          | 背景简介          |
 | 5    | 对象，存有描述武器的属性    | COC 中的武器    |
-* *0 为类型不明*
+ 0 为类型不明 
  */
   value: any
 }
@@ -81,8 +80,8 @@ export interface Character {
   id:number
   /** 角色名 */
   name: string,
-  /** 来自 {@link DiceData.version} */
-  version: DiceData['version'],
+  /** 来自 {@link DiceType.version} */
+  version: DiceType['version'],
   /** 是否将角色在`pclist`中删除(不显示) */
   clear: boolean 
   /** 来自 {@link Player.token} */
@@ -98,12 +97,12 @@ export interface Character {
 
 /** 玩家数据 位于`user`表 */
 export interface Player {
-  /** 来自 {@link DiceData.version} */
-  version: DiceData['version']
+  /** 来自 {@link DiceType.version} */
+  version: DiceType['version']
   /** 个人密钥 初始化时生成 */
   token: string
   /** 全局默认 PC */
-  nowPc: [number, string]
+  publicPc: [number, string]
   /** 角色们的`ID`和`token` */
   pclist?: Map<number, string>
   /** 历史出目 */

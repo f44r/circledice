@@ -12,17 +12,17 @@ export const using = ['database'] as const
 export { Config }
 
 const log = new Logger('CircleDice/core:')
-let dice:DICE;
+let dice: DICE;
 export function apply(ctx: Context, config: Config) {
   ctx.on('ready', async () => {
     log.info('CircleDice 已启动...正在尝试初始化数据')
     dice = new DICE(ctx)
-})
+  })
   ctx.plugin(Dice_r)
   ctx.plugin(Dice_pc)
   ctx.plugin(Dice_log)
   ctx.plugin(Dice_init)
-  
+
   ctx.command('uploadpc [message]')
     .action((_, message) => {
       let log = new Logger('circledice <<')
