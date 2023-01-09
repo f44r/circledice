@@ -20,11 +20,11 @@ export interface GameSpace {
   /** 当前 log 的状态 开关,id,token*/
   nowlog?: [boolean, number, string]
   /** 小队 userId -> pcId */
-  team?: Map<string, number>
+  team: Map<string, number>
   /** 日志ID -> 日志名 */
-  loglist?: Map<number, string>
+  loglist: Map<number, string>
   /** [pcid]name -> 先攻值 */
-  init?: Map<string, number>
+  init: Map<string, number>
 };
 
 /** 日志内容 */
@@ -58,7 +58,7 @@ export interface MsgLog {
 };
 
 /** 角色资源 */
-export interface Ats {
+export interface Assets {
   /** 标识`ats.value`值的类型 */
   type: 0|1|2|3|4|5,
   /**
@@ -84,10 +84,12 @@ export interface Character {
   version: DiceType['version'],
   /** 是否将角色在`pclist`中删除(不显示) */
   clear: boolean 
-  /** 来自 {@link Player.token} */
-  token: Player['token']
+  /** 来自 {@link PlayerData.token} \
+   * 为 pc bind id token 指令准备  
+   * 可修改 pclist 实现多个平台使用一个 pc*/
+  token: PlayerData['token']
   /** 根据`st文本`和{@link GameSpace.rule} 生成, `角色资源名->角色资源`*/
-  assets?: Map<string, Ats>
+  assets?: Map<string, Assets>
   /** 计数检定的成败次数 检定项->次数*/
   history?: {
     success?: Map<string, number>,
@@ -96,12 +98,14 @@ export interface Character {
 }
 
 /** 玩家数据 位于`user`表 */
-export interface Player {
+export interface PlayerData {
+  /** 数据主人,用户账号 */
+  uid:string
   /** 来自 {@link DiceType.version} */
   version: DiceType['version']
   /** 个人密钥 初始化时生成 */
   token: string
-  /** 全局默认 PC */
+  /** 全局默认 PC [ID,token] */
   publicPc: [number, string]
   /** 角色们的`ID`和`token` */
   pclist?: Map<number, string>

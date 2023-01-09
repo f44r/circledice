@@ -10,7 +10,7 @@ declare module 'koishi' {
     }
 }
 
-const log = new Logger('CircleDice/Me:')
+const log = new Logger('CircleDice/init:')
 
 
 export function apply(ctx: Context, config: Config) {
@@ -48,11 +48,14 @@ export function apply(ctx: Context, config: Config) {
     })
 }
 
-function createGameSpace(gid): GameSpace {
+function createGameSpace(gid:Session['gid']): GameSpace {
     return {
         'botOn': true,
         'token': dice.getToken(gid),
         'rule': 'coc7',
+        'team':new Map(),
+        'init':new Map(),
+        'loglist':new Map(),
         'version': dice.version
     }
 }

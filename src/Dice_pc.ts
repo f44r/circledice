@@ -1,6 +1,6 @@
 import { Context, Logger, Schema, Session } from 'koishi'
 import { Config } from './config'
-import { GameSpace, Character, Player } from './lib/types'
+import { GameSpace, Character, PlayerData ,Assets} from './lib/types'
 import { dice } from './index'
 
 export const name = 'Dice_st'
@@ -11,7 +11,7 @@ declare module 'koishi' {
     circledice_pc: Character
   }
   interface User {
-    player: Player
+    player: PlayerData
   }
   interface Channel {
     gameSpace: GameSpace
@@ -43,18 +43,8 @@ export function apply(ctx: Context, config: Config) {
 
 }
 
-function createCha(): Character {
-  return {
-    'id': dice.newChaId(),
-    'name': 'knight',
-    'clear': false,
-    'token': '',
-    'version': dice.version
-  }
-}
-
 function newCha(text: string, rule = 'coc7') {
-  let cha = createCha()
+  let cha = dice.createCha()
   const rexRet = text.match(/^([\s\S]{1,10}?)-/)
   if (rexRet) {
     cha.name = rexRet[1];
@@ -84,12 +74,10 @@ function newCha(text: string, rule = 'coc7') {
       cache = textParse(text)
       if (!cache[0]) return [false, cache[1]]
       cache = cache[1] as object
-      for (const key in cache) {
-        switch (typeof cache[key]) {
-          case 'number':
-            assets.set(key, { type: 1, value: cache[key] })
-            break
-        }
+      let typeID:Assets['type'] = 0
+      for (let key in cache) {
+        typeID = dice.getAssetsType(cache[key])
+        assets.set(key,{type:typeID,value:cache[key]})
       }
 
       if (assets.has('闪避')) assets.set('闪避', { type: 1, value: assets.get('敏捷').value / 2 });
@@ -102,6 +90,7 @@ function newCha(text: string, rule = 'coc7') {
       break;
   }
   cha.assets = assets
+  dice.newCha(cha)
   return ['yes', cha]
 }
 
