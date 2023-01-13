@@ -60,7 +60,7 @@ export interface MsgLog {
 /** 角色资源 */
 export interface Assets {
   /** 标识`ats.value`值的类型 */
-  type: 0|1|2|3|4|5,
+  type: 0 | 1 | 2 | 3 | 4 | 5,
   /**
 | type | value                      | 用途                  |
 | ---- | -------------------------- | :-------------------- |
@@ -77,13 +77,13 @@ export interface Assets {
 /** 角色数据，储存在`cd-pc`表中 */
 export interface Character {
   /** ID */
-  id:number
+  id: number
   /** 角色名 */
   name: string,
   /** 来自 {@link DiceType.version} */
   version: DiceType['version'],
   /** 是否将角色在`pclist`中删除(不显示) */
-  clear: boolean 
+  clear: boolean
   /** 来自 {@link PlayerData.token} \
    * 为 pc bind id token 指令准备  
    * 可修改 pclist 实现多个平台使用一个 pc*/
@@ -92,15 +92,15 @@ export interface Character {
   assets?: Map<string, Assets>
   /** 计数检定的成败次数 检定项->次数*/
   history?: {
-    success?: Map<string, number>,
-    fail?: Map<string, number>
+    success?: { [name: string]: number },
+    fail?: { [name: string]: number }
   }
 }
 
 /** 玩家数据 位于`user`表 */
 export interface PlayerData {
   /** 数据主人,用户账号 */
-  uid:string
+  uid: string
   /** 来自 {@link DiceType.version} */
   version: DiceType['version']
   /** 个人密钥 初始化时生成 */
