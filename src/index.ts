@@ -1,5 +1,4 @@
 import { Context, Logger, Schema } from 'koishi'
-import { Config } from './config'
 import { Character, PlayerData, GameSpace, Assets, MsgLog } from './lib/types'
 import { createHmac } from 'crypto'
 import * as Dice_r from './Dice_r'
@@ -10,7 +9,23 @@ import * as Dice_log from './Dice_log'
 export const name = 'circledice'
 export const using = ['database'] as const
 
-export { Config }
+export interface Config {
+  uploadPC: string
+  normalRule: string
+  logSaveDir:string
+  netcutPwd:string
+  netcutOn:boolean
+}
+
+export const Config = Schema.object({
+  uploadPC: Schema.string().description('上传空白人物卡绝对路径'),
+  normalRule: Schema.string().default('coc7').description('全局默认规则，现已支持：coc7'),
+  logSaveDir:Schema.string().default('circledice-log').description('保存log的目录'),
+  netcutPwd:Schema.string().default('pwd').description('分享到 netcut 时的密码'),
+  netcutOn:Schema.boolean().default(true).description('是否上传')
+})
+
+export { dice }
 
 const log = new Logger('CircleDice/dice:')
 let dice: Dice;
@@ -40,11 +55,11 @@ export function apply(ctx: Context, config: Config) {
   //dice = new Dice(ctx) 启动一个类的想法不变，但是会将 先攻、Log 这些数据移除。
   ctx.plugin(Dice_r)
   ctx.plugin(Dice_pc)
-  ctx.plugin(Dice_log)
+  ctx.plugin(Dice_log,config)
   //ctx.plugin(Dice_init)
 }
 
-export { dice }
+
 
 class Dice {
   /**之后所有的 version 属性都来自这里 供后续版本数据结构升级使用 */

@@ -1,7 +1,7 @@
 import { Context, Logger, Session, h } from 'koishi'
-import { Config } from './config'
 import * as fs from 'fs'
 import * as path from 'path'
+import { Config } from '.'
 
 const log = new Logger('CiecleDice/log:')
 
@@ -12,7 +12,12 @@ declare module 'koishi' {
   interface Tables {
     msg_log: LogIt
   }
+  interface Session {
+    onebot:any
+  }
 }
+
+
 
 type LogInfo = {
   isOn: boolean
@@ -44,28 +49,8 @@ type LogIt = {
   platform: string
 }
 
-export function apply(ctx: Context, Config: Config) {
-  ctx.i18n.define('zh', {
-    "circledice": {
-      "log": {
-        "pormptNot": "已取消相关操作",
-        "timeout": "看起来您还没考虑好\n[等待消息时间过长]",
-        "logNew": "新建日志《{0}》",
-        "logOn": "开启日志《{0}》",
-        "logOff": "关闭日志《{0}》",
-        "logGet": "将进行获取日志《{0}》操作。\n首先尝试上传文件，失败将尝试其他方式……",
-        "getEnd": "已经尝试过一切可行操作。",
-        "logList": "本群日志列表：{0}",
-        "logNewButIsOn": "已有开启的Log:{0} ，是否要关闭它后新建日志？发送 n 取消操作，其他字符将关闭原有 log。",
-        "logNewButNotName": "您似乎没有输入名字？发送 n 取消操作，其他字符视为日志名。",
-        "saveEnd": '已从数据库转到文本文件：{1}\n目录：{0}',
-        'saveFail': '从数据库转到文本文件失败！',
-        'clrWarn': '你确定？这将清除数据库的日志记录，发送 n 取消操作，其他字符继续流程……',
-        'upLogNetcut': '上传文本分享网站 netcut 成功。\nlink：{0}\n密码：{1}',
-        'upLogNetcutNot': '上传文本分享网站 netcut 失败！',
-      }
-    }
-  })
+export function apply(ctx: Context, config: Config) {
+  ctx.i18n.define('zh',require('./locales/zh.yml'))
 
   ctx = ctx.guild()
 
@@ -105,7 +90,7 @@ export function apply(ctx: Context, Config: Config) {
     let logIt = createLogIt(session, logInfo)
     if (logIt) {
       await ctx.database.create('msg_log', logIt)
-      log.debug(logIt)
+      log.info(logIt)
     }
   })
 
@@ -133,11 +118,11 @@ export function apply(ctx: Context, Config: Config) {
 
   // 指令实现
   ctx.command('log')
-    .option('new', '-n [name] 新建名为[name]的log')
-    .option('on', '-o [id] 开启之前关闭或者指定的log')
-    .option('off', '-s 关闭开启的log')
-    .option('list', '-l 查看本群所有log')
-    .option('get', '-g [id] ')
+    .option('new', '-n [name]')
+    .option('on', '-o [name]')
+    .option('off', '-f')
+    .option('list', '-l')
+    .option('get', '-g [name]')
     .usage('游戏日志相关指令')
     .channelFields(['logInfo'])
     .action(async (argv) => {
@@ -208,13 +193,13 @@ export function apply(ctx: Context, Config: Config) {
             text += `<${It.ChName}>（${new Date(It.time).toLocaleString()}）：${It.context}\n`
           })
           data = null
-          let t2 = { text: text, pwd: Config.netcutPwd } // 使用引用传递
+          let t2 = { text: text, pwd: config.netcutPwd } // 使用引用传递
           let fileName = `${session.platform}-${session.channelId}-${logInfo.nowLogName}-${randomString(6)}.txt`
-          let filePath = path.join(ctx.baseDir, /*Config.logSaveDir, */fileName)
+          let filePath = path.join(ctx.baseDir, config.logSaveDir, fileName)
           let isOk = await logSave(filePath, text)
           // 上传文件
           if (isOk == 'ok') {
-            session.sendQueued(i18('saveEnd', [Config.logSaveDir, fileName]))
+            session.sendQueued(i18('saveEnd', [config.logSaveDir, fileName]))
             if(session.platform == 'onebot'){
               var url = filePath
               await session.onebot.uploadGroupFile(session.guildId,url,fileName)
@@ -227,11 +212,11 @@ export function apply(ctx: Context, Config: Config) {
           }
           // 上传文本分享网站
           // todo 
-          if (Config.netcutOn) {
+          if (config.netcutOn) {
             let link = await upLogNetcut(ctx, t2)
             if (link != null) {
               log.info(link)
-              session.sendQueued(i18('upLogNetcut', [link,Config.netcutPwd]))
+              session.sendQueued(i18('upLogNetcut', [link,config.netcutPwd]))
             } else {
               session.sendQueued(i18('upLogNetcutNot'))
             }
@@ -342,7 +327,7 @@ async function upLogNetcut(ctx: Context, text: { text: string, pwd: string }, nu
   let data = await ctx.http.post("https://netcut.cn/api/note/create/", body, { headers: headers })
   switch (data.status) {
     case 0:
-      log.warn('剪贴板已存在！\n更换换一个随机数……')
+      log.warn('剪贴板已存在！\n更换一个随机数……')
       num++
       return upLogNetcut(ctx, text, num)
     case 1:

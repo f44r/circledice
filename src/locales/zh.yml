@@ -1,7 +1,7 @@
 commands:
   log:
     description: 提供游戏日志相关指令
-    usage: |
+    usage: |-
       log new 创建日志
       log on 开启日志
       log off 关闭日志
@@ -13,14 +13,29 @@ commands:
       off: 关闭
       get: 获取
       list: 查看列表
-    message:
-      pormpt=n: 已取消相关操作
-      timeout: 看起来您还没考虑好\n[等待消息时间过长]
-      logNew: 新建日志《{0}》
-      logOn: 开启日志《{0}》
-      logOff: 关闭日志《{0}》
-      logGet: 将进行获取日志《{0}》操作……\n首先尝试上传文件，失败将尝试其他方式……
-      logGetEnd: 已经尝试过一切可行操作。
-      logList: 本群日志列表：{0}
-      logNewButIsOn: 已有开启的Log:{0} ，是否要关闭它后新建日志？发送 n 取消操作，其他字符将关闭原有 log。
-      logNewButNotName: 您似乎没有输入名字？发送 n 取消操作，其他字符视为日志名。
+circledice:
+  log:
+    pormptNot: 已取消相关操作
+    timeout: |-
+      看起来您还没考虑好
+      [等待消息时间过长]
+    logNew: 新建日志《{0}》
+    logOn: 开启日志《{0}》
+    logOff: 关闭日志《{0}》
+    logGet: |-
+      将进行获取日志《{0}》操作。
+      首先尝试上传文件，失败将尝试其他方式……
+    getEnd: 已经尝试过一切可行操作。
+    logList: 本群日志列表：{0}
+    logNewButIsOn: 已有开启的Log:{0} ，是否要关闭它后新建日志？发送 n 取消操作，其他字符将关闭原有 log。
+    logNewButNotName: 您似乎没有输入名字？发送 n 取消操作，其他字符视为日志名。
+    saveEnd: |-
+      已从数据库转到文本文件：{1}
+      目录：{0}
+    saveFail: 从数据库转到文本文件失败！
+    clrWarn: 你确定？这将清除数据库的日志记录，发送 n 取消操作，其他字符继续流程……
+    upLogNetcut: |-
+      上传文本分享网站 netcut 成功。
+      link：{0}
+      密码：{1}
+    upLogNetcutNot: 上传文本分享网站 netcut 失败！
