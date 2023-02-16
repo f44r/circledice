@@ -1,5 +1,5 @@
 import { Context, Logger, Session, h } from 'koishi'
-import { Config } from './index'
+import { Config } from './config'
 import * as fs from 'fs'
 import * as path from 'path'
 
@@ -210,12 +210,17 @@ export function apply(ctx: Context, Config: Config) {
           data = null
           let t2 = { text: text, pwd: Config.netcutPwd } // 使用引用传递
           let fileName = `${session.platform}-${session.channelId}-${logInfo.nowLogName}-${randomString(6)}.txt`
-          let filePath = path.join(ctx.baseDir, Config.logSaveDir, fileName)
+          let filePath = path.join(ctx.baseDir, /*Config.logSaveDir, */fileName)
           let isOk = await logSave(filePath, text)
           // 上传文件
           if (isOk == 'ok') {
             session.sendQueued(i18('saveEnd', [Config.logSaveDir, fileName]))
-            session.sendQueued(h.file('file:///' + filePath))
+            if(session.platform == 'onebot'){
+              var url = filePath
+              await session.onebot.uploadGroupFile(session.guildId,url,fileName)
+            }else{
+              session.sendQueued(h.file('file:///' + filePath))
+            }
             // todo webdav 协议 
           } else {
             return i18('saveFail')
