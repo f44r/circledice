@@ -7,7 +7,7 @@ import * as Dice_log from './Dice_log'
 
 
 export const name = 'circledice'
-export const using = ['database'] as const
+export const using = ['database','cron'] as const
 
 export interface Config {
   uploadPC: string
@@ -15,6 +15,7 @@ export interface Config {
   logSaveDir:string
   netcutPwd:string
   netcutOn:boolean
+  autoDelLog:number
 }
 
 export const Config = Schema.object({
@@ -22,7 +23,8 @@ export const Config = Schema.object({
   normalRule: Schema.string().default('coc7').description('全局默认规则，现已支持：coc7'),
   logSaveDir:Schema.string().default('circledice-log').description('保存log的目录'),
   netcutPwd:Schema.string().default('pwd').description('分享到 netcut 时的密码'),
-  netcutOn:Schema.boolean().default(true).description('是否上传')
+  netcutOn:Schema.boolean().default(true).description('是否上传'),
+  autoDelLog:Schema.number().default(259200).description('定时删除多少秒前的log')
 })
 
 export { dice }

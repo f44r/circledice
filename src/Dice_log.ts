@@ -116,6 +116,16 @@ export function apply(ctx: Context, config: Config) {
     }).then(() => { log.info('已经删除被撤回的日志消息') })
   })
 
+  // 定时删除一定时间前的log
+  ctx.cron('* * */1 * *', () => {
+    let timestamp1 = (new Date()).valueOf()
+    timestamp1 -= config.autoDelLog*1000
+    ctx.database.remove('msg_log', {
+      isLog: false,
+      time: {$lt: timestamp1}
+    })
+  })
+
   // 指令实现
   ctx.command('log')
     .option('new', '-n [name]')

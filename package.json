@@ -16,6 +16,10 @@
     "plugin"
   ],
   "peerDependencies": {
-    "koishi": "^4.10.1"
+    "koishi": "^4.10.1",
+    "cron": "^2.0.5"
+  },
+  "dependencies": {
+    "webdav": "5.0.0-r3"
   }
 }
