@@ -1,29 +1,26 @@
 commands:
-  foo:
-    description: 指令描述
+  log:
+    description: 提供游戏日志相关指令
     usage: |
-      指令用法
-      可以是多行文本
-    examples: |
-      foo qux
-      foo --bar qux
+      log new 创建日志
+      log on 开启日志
+      log off 关闭日志
+      log get 获取日志
+      log list 查看日志列表
     options:
-      bar: 选项描述
+      new: 新建
+      on: 开启
+      off: 关闭
+      get: 获取
+      list: 查看列表
     message:
-    # ctx.command 内部直接使用 session.text('.aaa')
-      aaa : bbb
-      中文: 也可以呢
-      rdwhy@random:
-        - dd
-        - 房地产
-  deck: 
-    description: 抽牌/抽卡
-    usage: deck 关键词
-    examples: 例如 deck 猫猫
-    options:
-      hide: 暗抽
-      show: 查看群池子内牌组情况
-      clear: 清空群池子
-    message:
-      reply@random:
-        - 多么好的一个奇迹
+      pormpt=n: 已取消相关操作
+      timeout: 看起来您还没考虑好\n[等待消息时间过长]
+      logNew: 新建日志《{0}》
+      logOn: 开启日志《{0}》
+      logOff: 关闭日志《{0}》
+      logGet: 将进行获取日志《{0}》操作……\n首先尝试上传文件，失败将尝试其他方式……
+      logGetEnd: 已经尝试过一切可行操作。
+      logList: 本群日志列表：{0}
+      logNewButIsOn: 已有开启的Log:{0} ，是否要关闭它后新建日志？发送 n 取消操作，其他字符将关闭原有 log。
+      logNewButNotName: 您似乎没有输入名字？发送 n 取消操作，其他字符视为日志名。

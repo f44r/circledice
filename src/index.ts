@@ -1,11 +1,10 @@
 import { Context, Logger, Schema } from 'koishi'
 import { Config } from './config'
-import { Character, PlayerData, GameSpace, Assets } from './lib/types'
+import { Character, PlayerData, GameSpace, Assets, MsgLog } from './lib/types'
 import { createHmac } from 'crypto'
 import * as Dice_r from './Dice_r'
 import * as Dice_pc from './Dice_pc'
 import * as Dice_log from './Dice_log'
-import * as Dice_init from './Dice_init'
 
 
 export const name = 'circledice'
@@ -16,6 +15,7 @@ export { Config }
 const log = new Logger('CircleDice/dice:')
 let dice: Dice;
 export function apply(ctx: Context, config: Config) {
+  // 扩展数据模型
   ctx.model.extend('circledice_pc', {
     'id': 'unsigned',
     'name': 'string',
@@ -26,25 +26,22 @@ export function apply(ctx: Context, config: Config) {
     'history': 'json'
   })
   ctx.model.extend('user', {
-    player: 'json',
+    player: {
+      type:'json'
+    }
   })
   ctx.model.extend('channel', {
-    gameSpace: 'json',
+    gameSpace: {
+      type:'json'
+    },
   })
 
   log.info('CircleDice 已启动...正在尝试初始化数据')
-  dice = new Dice(ctx)
+  //dice = new Dice(ctx) 启动一个类的想法不变，但是会将 先攻、Log 这些数据移除。
   ctx.plugin(Dice_r)
   ctx.plugin(Dice_pc)
   ctx.plugin(Dice_log)
-  ctx.plugin(Dice_init)
-
-  ctx.command('uploadpc [message]')
-    .action((_, message) => {
-      let log = new Logger('circledice <<')
-      log.info(`[${_.session.userId}]${_.session.content}`)
-      //_.session.onebot.uploadGroupFile(_.session.guildId, config.uploadPC, "COC7空白卡.xlsx")
-    })
+  //ctx.plugin(Dice_init)
 }
 
 export { dice }
@@ -205,6 +202,11 @@ class Dice {
       pc = this.chaAll.get(p.publicPc[0])
     }
     return pc
+  }
+
+  createLogIt(s:string){
+    let logIt:MsgLog
+    return logIt
   }
 }
 

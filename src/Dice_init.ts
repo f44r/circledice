@@ -5,7 +5,6 @@ import { dice } from './index'
 
 declare module 'koishi' {
     interface Tables {
-        msgLog: MsgLog
         circledice_pc: Character
     }
 }
