@@ -1,7 +1,7 @@
 import { Context, Logger, Session, h } from 'koishi'
 import * as fs from 'fs'
 import * as path from 'path'
-import { Config } from '.'
+import { Config } from './index'
 
 const log = new Logger('CiecleDice/log:')
 
@@ -122,6 +122,7 @@ export function apply(ctx: Context, config: Config) {
     .option('on', '-o [name]')
     .option('off', '-f')
     .option('list', '-l')
+    .option('rm', '-r [name]')
     .option('get', '-g [name]')
     .usage('游戏日志相关指令')
     .channelFields(['logInfo'])
@@ -201,8 +202,7 @@ export function apply(ctx: Context, config: Config) {
           if (isOk == 'ok') {
             session.sendQueued(i18('saveEnd', [config.logSaveDir, fileName]))
             if(session.platform == 'onebot'){
-              var url = filePath
-              await session.onebot.uploadGroupFile(session.guildId,url,fileName)
+              await session.onebot.uploadGroupFile(session.guildId,filePath,fileName)
             }else{
               session.sendQueued(h.file('file:///' + filePath))
             }
@@ -224,13 +224,24 @@ export function apply(ctx: Context, config: Config) {
           session.sendQueued(i18('getEnd'))
           break;
         case 'rm':
-          session.send(i18('clrWarn'))
-          let warn = await session.prompt()
-          if (warn == null) return i18('timeout')
-          if (warn == 'n') {
-            return i18('pormptNot')
-          }
-
+          ctx.database.remove('msg_log', {
+            isLog: false,
+            cid: session.channelId,
+            logName: argv.args[1],
+            platform: session.platform
+          })
+          ctx.database.remove('msg_log', {
+            mid: session.messageId,
+            cid: session.channelId,
+            platform: session.platform
+          })
+          logInfo.isOn = false
+          logInfo.nowLogName = 'recall'
+          let index = logInfo.logList.indexOf(argv.args[1])
+          if(index > -1){logInfo.logList.splice(index, 1)}
+          await ctx.database.setChannel(session.platform, session.channelId,{logInfo: logInfo})
+          session.sendQueued(i18('logRm',[session.channelId,argv.args[1]]))
+          break;
         default:
           session.send('请注意空格')
       }

@@ -1,5 +1,5 @@
 import { Context, Schema, Logger, Argv, Session } from 'koishi'
-import { Config } from './config'
+import { Config } from './index'
 import { Character, GameSpace, LogText, MsgLog } from './lib/types'
 import { dice } from './index'
 

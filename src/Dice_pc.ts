@@ -1,5 +1,5 @@
 import { Context, Logger, Schema, Session } from 'koishi'
-import { Config } from './config'
+import { Config } from './index'
 import { GameSpace, Character, PlayerData ,Assets} from './lib/types'
 import { dice } from './index'
 
