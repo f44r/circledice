@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
-    "types": ["yml-register/types"]
+    "types": ["yml-register/types","koishi-plugin-cron"]
   },
   "include": [
     "src"

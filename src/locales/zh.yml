@@ -11,8 +11,19 @@ commands:
       new: 新建
       on: 开启
       off: 关闭
-      get: 获取
+      get: 根据日志名获取日志/获取几个小时前的日志
       list: 查看列表
+      rm: 删除
+  pc:
+    description: 提供 pc 管理指令
+    usage: |-
+    options:
+      new: 创建一个角色
+      rm: 删除自己的角色
+      list: 查看自己的角色列表
+      view: 查看指定角色的详细信息
+      bind: 与当前群设置关联
+      all: 是否使用全局人物卡
 circledice:
   log:
     pormptNot: 已取消相关操作
@@ -21,6 +32,9 @@ circledice:
       [等待消息时间过长]
     logNew: 新建日志《{0}》
     logOn: 开启日志《{0}》
+    logONButIsRecall: |-
+      您是不是没有新建日志？当前的日志的名为 recall ，是针对人类遗忘机制的保留关键字，不应该作为日志名使用。
+      发送 n 无视警告，其他字符视为新日志名。
     logOff: 关闭日志《{0}》
     logGet: |-
       将进行获取日志《{0}》操作。
@@ -35,7 +49,7 @@ circledice:
     saveFail: 从数据库转到文本文件失败！
     logRm: 已清除数据库内频道（{0}）内《{1}》的全部日志记录
     upLogNetcut: |-
-      上传文本分享网站 netcut 成功。
+      上传文本分享网站 netcut 。
       link：{0}
       密码：{1}
     upLogNetcutNot: 上传文本分享网站 netcut 失败！

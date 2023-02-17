@@ -16,10 +16,11 @@
     "plugin"
   ],
   "peerDependencies": {
-    "koishi": "^4.10.1",
-    "cron": "^2.0.5"
+    "cron": "^2.0.5",
+    "koishi": "^4.10.1"
   },
   "dependencies": {
+    "@onedice/core": "^1.0.2",
     "webdav": "5.0.0-r3"
   }
 }

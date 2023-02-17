@@ -1,230 +1,304 @@
-import { Context, Logger, Schema } from 'koishi'
-import { Character, PlayerData, GameSpace, Assets, MsgLog } from './lib/types'
-import { createHmac } from 'crypto'
+import { Context, Logger, Schema, User } from 'koishi'
 import * as Dice_r from './Dice_r'
 import * as Dice_pc from './Dice_pc'
 import * as Dice_log from './Dice_log'
+import * as fs from 'fs'
+import * as path from 'path'
+import vm from './lib/dicescript'
+import { dice as vm2 } from '@onedice/core'
 
 
-export const name = 'circledice'
-export const using = ['database','cron'] as const
+declare module 'koishi' {
+  interface Tables {
+    circledice_pc: CharacterData
+  }
+  interface User {
+    player: PlayerData
+  }
+  interface Channel {
+    gameSpace: GameSpaceData
+  }
+}
+
+interface GameSpaceData {
+  isBotOn: boolean
+  rule: string
+  version: string
+  /** uid - 角色 id */
+  team: { [name: string]: number }
+}
+
+interface PlayerData {
+  version: string
+  publicPc: number | null;
+  pclist: []
+  hiyDice: number[]
+  newPcPre: boolean
+}
+
+interface CharacterData {
+  id: number
+  assets: [string, Assets][]
+  history: hiy
+}
+
+type hiy = { [name: string]: number }
+
+interface Assets {
+  /** 标识`ats.value`值的类型 */
+  type: 0 | 1 | 2 | 3 | 4 | 5,
+  /**
+| type | value                      | 用途                  |
+| ---- | -------------------------- | :-------------------- |
+| 1    | 数字                       | COC中的技能检定       |
+| 2    | 数字，但一般不可变（常量） | COC中属性             |
+| 3    | 字符串，为掷骰表达式       | COC中的DB，武器的伤害 |
+| 4    | 字符串，是自然语言          | 背景简介          |
+| 5    | 对象，存有描述武器的属性    | COC 中的武器    |
+ 0 为类型不明 
+ */
+  value: any
+}
 
 export interface Config {
   uploadPC: string
   normalRule: string
-  logSaveDir:string
-  netcutPwd:string
-  netcutOn:boolean
-  autoDelLog:number
+  logSaveDir: string
+  netcutPwd: string
+  netcutOn: boolean
+  autoDelLog: number
+  useRollVM: string
+  newPcPre: boolean
 }
 
-export const Config = Schema.object({
-  uploadPC: Schema.string().description('上传空白人物卡绝对路径'),
-  normalRule: Schema.string().default('coc7').description('全局默认规则，现已支持：coc7'),
-  logSaveDir:Schema.string().default('circledice-log').description('保存log的目录'),
-  netcutPwd:Schema.string().default('pwd').description('分享到 netcut 时的密码'),
-  netcutOn:Schema.boolean().default(true).description('是否上传'),
-  autoDelLog:Schema.number().default(259200).description('定时删除多少秒前的log')
-})
+export interface RollRet {
+  ok: boolean
+  ret: number
+  detail: string
+  rest: string
+  err: string
+}
 
-export { dice }
+export const Config: Schema<Config> = Schema.intersect([
+  Schema.object({
+    useRollVM: Schema.union(['diceScript', 'oneDice']).default('diceScript').description('使用那种骰点解析方式：'),
+    newPcPre: Schema.boolean().default(true).description('新群录入属性时是否默认新建角色：')
+  }).description('基本配置'),
+  Schema.object({
+    uploadPC: Schema.string().description('上传空白人物卡绝对路径'),
+    normalRule: Schema.string().default('coc7').description('全局默认规则，现已支持：coc7'),
+    logSaveDir: Schema.string().default('circledice-log').description('保存log的目录'),
+    netcutOn: Schema.boolean().default(true).description('是否上传到 netcut 方便分享？'),
+    netcutPwd: Schema.string().default('pwd').description('分享到 netcut 时的密码'),
+    autoDelLog: Schema.number().default(259200).description('定时删除多少秒前的log')
+  }).description('Log 日志配置')
+])
 
+export const name = 'circledice'
+export const using = ['database', 'cron'] as const
 const log = new Logger('CircleDice/dice:')
+
+const diceInit: [string, Assets][] = [
+  ['MAXID', { type: 1, value: 1 }]
+]
+
 let dice: Dice;
+
 export function apply(ctx: Context, config: Config) {
   // 扩展数据模型
   ctx.model.extend('circledice_pc', {
     'id': 'unsigned',
-    'name': 'string',
-    'version': 'string',
-    'clear': 'boolean',
-    'token': 'string',
-    'assets': 'json',
-    'history': 'json'
-  })
+    'assets': {
+      type: 'json',
+      initial: []
+    },
+    'history': {
+      type: 'json',
+      initial: {}
+    }
+  });
+
   ctx.model.extend('user', {
     player: {
-      type:'json'
+      type: 'json', initial: {
+        'version': 'dev',
+        'hiyDice': [0],
+        'pclist': [],
+        'publicPc': null,
+        'newPcPre': config.newPcPre
+      }
     }
   })
+
   ctx.model.extend('channel', {
     gameSpace: {
-      type:'json'
-    },
+      type: 'json', initial: {
+        'isBotOn': true,
+        'rule': 'coc7',
+        'team': {},
+        'version': 'dev'
+      }
+    }
   })
 
   log.info('CircleDice 已启动...正在尝试初始化数据')
-  //dice = new Dice(ctx) 启动一个类的想法不变，但是会将 先攻、Log 这些数据移除。
-  ctx.plugin(Dice_r)
-  ctx.plugin(Dice_pc)
-  ctx.plugin(Dice_log,config)
-  //ctx.plugin(Dice_init)
+  dice = new Dice(ctx, config)
+  ctx.plugin(Dice_r, config)
+  ctx.plugin(Dice_pc, config)
+  ctx.plugin(Dice_log, config)
+  //ctx.on('before-send') 是否 bot off 完全静默？
+  //ctx.on('brfore-parse') todo 二次解析指令
 }
-
 
 
 class Dice {
-  /**之后所有的 version 属性都来自这里 供后续版本数据结构升级使用 */
-  version: string = 'dev'
-  /** 最大 pcid */
-  maxpcid: number
-  /** 最大 logid  */
-  maxlogid: number
-  /** 用角色卡机制存一些零散的数据 */ // 因为单独开一张表来存既麻烦又浪费
-  knight: Character
-  /** 全部角色数据 */
-  chaAll: Map<number, Character> = new Map()
   ctx: Context
+  config: Config
+  chAll: Map<number, CharacterData>
+  knight: Character
+  maxPcId: number
 
-  constructor(ctx: Context) { // todo botID:string[]=[] 多 bot 配置页面
+  constructor(ctx: Context, config: Config) {
     this.ctx = ctx
-    this.loadDice()
-      .then(() => {
-        log.info(` Knight 已上线。\n记录角色数量：${this.maxpcid} | 实际角色数量：${this.chaAll.size}\nMaxLogID：${this.maxlogid}\n`)
+    this.config = config
+    this.load()
+  }
+
+  // 依稀记得设计这个加载机制原因是 db.create 返回没有 id 字段，没法确定 ID
+  // 现在一想 加个 uuid 字段或者发个 issues 什么的应该能更好的解决（
+  async load() {
+    this.chAll = new Map()
+    let data = await this.ctx.database.get('circledice_pc', { id: { $gt: -1 } })
+    // 第一次
+    if (data.length == 0) {
+      data.push({
+        id: 1,
+        'assets': diceInit,
+        'history': { 'maxPcId': 1 }
       })
+    }
+    // 真构造（？
+    data.forEach(ele => {
+      this.chAll.set(ele.id, ele)
+    })
+    this.knight = this.getChRaw(1) // 圆桌骑士x
+
+    return this.knight
+
   }
 
-  /** 加载骰子数据 */
-  async loadDice() {
-    let x = await this.ctx.database.get('circledice_pc', { id: { $gt: 0 } })
-    for (let x1 of x) {
-      x1.assets = new Map(Object.entries(x1.assets))
-      this.chaAll.set(x1.id, x1)
-    }
-    this.knight = this.chaAll.get(1)
-    try {
-      this.knight.assets.set('lastTime', { type: 1, value: Date.now() })
-      this.chaAll.set(1, this.knight)
-    } catch (error) {
-      this.knight = {
-        'id': 1,
-        'name': 'knight',
-        'clear': false,
-        'token': 'x',
-        'version': this.version,
-        'assets': new Map([
-          ['maxpc', { type: 1, value: 1 }],
-          ['maxlog', { type: 1, value: 0 }],
-          ['lastTime', { type: 1, value: Date.now() }],
-          ['desc', { type: 4, value: '初号机屹立于大地之上' }] // 虽然没有意义,但很有意义(
-        ])
+  save(ctx: Context) {
+    let data: CharacterData[] = []
+    this.chAll.forEach(ch => {
+      data.push({
+        id: ch.id,
+        assets: ch.assets,
+        history: ch.history
+      })
+    })
+    ctx.database.upsert('circledice_pc', data)
+      .then(() => log.info('角色数据保存完成'))
+  }
+
+
+  getChRaw(id: number): Character {
+    return new Character(this.chAll.get(id))
+  }
+
+  getCh(u: User, g: GameSpaceData) {
+    let pcid = g.team[u.id]
+    if (pcid) {
+      // 绑卡状态
+      return this.getChRaw(pcid)
+    } else {
+      pcid = u.player.publicPc
+      if (pcid) {
+        // 从来没有用过，新建一张
+        return this.newCh(u, g)
+      } else {
+        return this.getChRaw(pcid)
       }
-      this.chaAll.set(1, this.knight)
-    }
-    this.maxpcid = this.knight.assets.get('maxpc').value
-    this.maxlogid = this.knight.assets.get('maxlog').value
-    await this.save()
-  }
-
-  /** 保存骰子数据 */
-  async save() {
-    let rows = [], row: any = {}
-    for (let x1 of this.chaAll.values()) {
-      row = x1
-      row.assets = [...x1.assets.entries()].reduce((obj, [key, value]) => (obj[key] = value, obj), {})
-      rows.push(row)
-    }
-    await this.ctx.database.upsert('circledice_pc', rows)
-    log.info('共 ' + rows.length + ' 个角色的数据更新入数据库。')
-  }
-
-  /** 使 `maxpcid` +1，返回+1后 `maxpcid` */
-  newChaId() {
-    this.maxpcid++
-    return this.maxpcid
-  }
-
-  createCha(): Character {
-    this.maxpcid++
-    return {
-      'id': this.maxpcid,
-      'name': 'knight',
-      'clear': false,
-      'token': '',
-      'version': this.version
     }
   }
 
-  newCha(character: Character) {
-    this.chaAll.set(character.id, character)
-  }
-  /** 使 `maxlogid` +1，返回+1后 `maxlogid` */
-  newLogId() {
-    this.maxlogid++
-    return this.maxlogid
+  newCh(u: User, g: GameSpaceData) {
+    this.maxPcId++
   }
 
-  /** 根据 ID 加盐生成 token 
-   * @param 应为群组ID或者个人ID
-  */
-  getToken(x: string): string {
-    const pwd = 'pwd';// 或许可以提供一个配置项
-    const hash = createHmac('md5', pwd).update(x).digest('hex');
-    return hash
-  }
-
-  /** 简易资源类型推断 */
-  getAssetsType(val: any) {
-    let i: Assets['type'] = 0
-    switch (typeof val) {
-      case 'number':
-        i = 1
-        break;
-      case 'string':
-        // todo 这里需要 rd 的 api,先简单判断一下吧
-        i = val.match(/^((\d*)d)?(\d+)(\+((\d*)d)?(\d+))*$/i) ? 3 : 4
-        break;
-      case 'object':
-        i = 5
-        break;
-      default:
-        i = 0
+  roll(text: string): RollRet {
+    let ret: RollRet = {
+      'ok': false,
+      'ret': 0,
+      'rest': '',
+      'detail': '',
+      'err': null
     }
-    return i
-  }
-
-  /** 快速设置角色资源值 
-   * @param character 角色
-   * @param key 资源键值
-   * @param val 资源值
-   * @param typ 可选 指定资源类型
-  */
-  setChaAs(character: Character, key: string, val: any, typ: Assets['type'] = 0) {
-    let i: Assets['type'] = 0
-    if (typ != 0) {
-      i = typ
-    } else {
-      i = this.getAssetsType(val)
+    switch (this.config.useRollVM) {
+      case 'diceScript':
+        let mctx = vm.newVM()
+        mctx.Flags.PrintBytecode = true;
+        mctx.Flags.EnableDiceWoD = true;
+        mctx.Flags.EnableDiceCoC = true;
+        mctx.Flags.EnableDiceFate = true;
+        mctx.Flags.EnableDiceDoubleCross = true;
+        try {
+          mctx.Run(text)
+          if (mctx.Error) {
+            ret.err = `语法异常: ${mctx.Error.Error()}`
+          } else {
+            ret.detail = mctx.Detail
+            ret.ret = +mctx.Ret.ToString() || 0
+            ret.rest = mctx.RestInput
+            ret.ok = true
+          }
+        } catch (e) {
+          ret.err = 'diceScriptERR: ' + e.message
+        }
+        return ret
+      case 'oneDice':
+        try {
+          const [value, root] = vm2(text)
+          ret.ret = value
+          ret.detail = root.toString()
+          ret.ok = true
+        } catch (e) {
+          ret.err = String(e)
+        }
+        return ret
     }
-    let cha = this.chaAll.get(character.id)
-    cha.assets.set(key, { type: i, value: val })
-    this.chaAll.set(character.id, cha)
-  }
-
-  /** 快速获取角色资源值;其实不够快 */
-  getChaAs(c: Character, key: string) {
-    return c.assets.get(key).value
-  }
-
-  /** 获取当前 PC ；在群且录入过角色，使用录入角色；否则使用全局角色
-   * @param p 玩家数据
-   * @param g 群组数据
-   */
-  getCurrentPC(p: PlayerData, g: GameSpace) {
-    let pc: Character;
-    if (!g) {
-      const pcid = g.team.get(p.uid) // 非 0 id
-      pc = pcid ? this.chaAll.get(pcid) : this.chaAll.get(p.publicPc[0])
-    } else {
-      pc = this.chaAll.get(p.publicPc[0])
-    }
-    return pc
-  }
-
-  createLogIt(s:string){
-    let logIt:MsgLog
-    return logIt
   }
 }
 
+class Character {
+  id: number
+  name: string
+  assets: Map<string, any>
+  history: hiy
 
+  constructor(ele: CharacterData) {
+    this.assets = new Map()
+  }
+
+  get(key: string, type: string | number) {
+
+  }
+
+  set(key: string, value: any, type: string | number) {
+
+  }
+
+  Addhiy(k: string,n:number) {
+
+  }
+}
+
+export { dice }
+
+// 这里放一些常用的工具函数
+export function randomString(length: number) {
+  let str = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  for (let i = length; i > 0; --i)
+    result += str[Math.floor(Math.random() * str.length)];
+  return result;
+}

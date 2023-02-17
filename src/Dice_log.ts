@@ -1,7 +1,7 @@
 import { Context, Logger, Session, h } from 'koishi'
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
 import * as path from 'path'
-import { Config } from './index'
+import { Config, randomString } from '.'
 
 const log = new Logger('CiecleDice/log:')
 
@@ -13,7 +13,7 @@ declare module 'koishi' {
     msg_log: LogIt
   }
   interface Session {
-    onebot:any
+    onebot: any
   }
 }
 
@@ -50,7 +50,7 @@ type LogIt = {
 }
 
 export function apply(ctx: Context, config: Config) {
-  ctx.i18n.define('zh',require('./locales/zh.yml'))
+  ctx.i18n.define('zh', require('./locales/zh.yml'))
 
   ctx = ctx.guild()
 
@@ -117,12 +117,14 @@ export function apply(ctx: Context, config: Config) {
   })
 
   // 定时删除一定时间前的log
-  ctx.cron('* * */1 * *', () => {
-    let timestamp1 = (new Date()).valueOf()
-    timestamp1 -= config.autoDelLog*1000
-    ctx.database.remove('msg_log', {
-      isLog: false,
-      time: {$lt: timestamp1}
+  ctx.using(['cron'], (ctx) => {
+    ctx.cron('* * */1 * *', () => {
+      let timestamp1 = (new Date()).valueOf()
+      timestamp1 -= config.autoDelLog * 1000
+      ctx.database.remove('msg_log', {
+        isLog: false,
+        time: { $lt: timestamp1 }
+      })
     })
   })
 
@@ -141,6 +143,7 @@ export function apply(ctx: Context, config: Config) {
       if (argv.options.new) argv.args = ['new', argv.options.new];
       if (argv.options.on) argv.args = ['on', argv.options.on];
       if (argv.options.get) argv.args = ['get', argv.options.get];
+      if (argv.options.rm) argv.args = ['rm', argv.options.rm];
 
       const { session, args } = argv
       let logInfo = session.channel.logInfo
@@ -170,7 +173,7 @@ export function apply(ctx: Context, config: Config) {
             session.send(i18('logNewButIsOn', [logInfo.nowLogName]))
             let prompt = await session.prompt()
             if (prompt != null) {
-              if (prompt == 'n') return i18('.prompt=n')
+              if (prompt == 'n') return i18('.promptNot')
             } else {
               return i18('timeout')
             }
@@ -181,12 +184,17 @@ export function apply(ctx: Context, config: Config) {
           logInfo.nowLogName = newName
           return i18('logNew', [logInfo.nowLogName])
         case 'on':
-          if (args[1]) logInfo.nowLogName = args[1]
+          if (args[1]) logInfo.nowLogName = args[1];
+          if(logInfo.nowLogName == 'recall'){
+
+          }
           logInfo.isOn = true
           return i18('logOn', [logInfo.nowLogName])
         case 'off':
           logInfo.isOn = false
-          return i18('logOff', [logInfo.nowLogName])
+          session.send(i18('logOff', [logInfo.nowLogName]))
+          logInfo.nowLogName = 'recall'
+          break;
         case 'list':
           return i18('logList', [logInfo.logList.join('\n')])
         case 'get':
@@ -199,38 +207,48 @@ export function apply(ctx: Context, config: Config) {
             isLog: true,
             logName: name
           })
-          let text = '# ' + logInfo.nowLogName + '\n'
+          let text = '# ' + logInfo.nowLogName + '\n\n'
+          let ls = {}
           data.forEach(It => {
-            text += `<${It.ChName}>（${new Date(It.time).toLocaleString()}）：${It.context}\n`
+            ls[It.uid] = null
+            text += `*${It.ChName}（${session.uid}|${new Date(It.time).toLocaleString()}）*\n\n> ${It.context}\n\n`
           })
+          text += '**中之人**\n\n'
+          Object.keys(ls).forEach(x=>{
+            text += '- ' + x + '\n\n'
+          })
+          text += session.platform
           data = null
           let t2 = { text: text, pwd: config.netcutPwd } // 使用引用传递
           let fileName = `${session.platform}-${session.channelId}-${logInfo.nowLogName}-${randomString(6)}.txt`
           let filePath = path.join(ctx.baseDir, config.logSaveDir, fileName)
-          let isOk = await logSave(filePath, text)
           // 上传文件
-          if (isOk == 'ok') {
-            session.sendQueued(i18('saveEnd', [config.logSaveDir, fileName]))
-            if(session.platform == 'onebot'){
-              await session.onebot.uploadGroupFile(session.guildId,filePath,fileName)
-            }else{
-              session.sendQueued(h.file('file:///' + filePath))
-            }
-            // todo webdav 协议 
-          } else {
-            return i18('saveFail')
-          }
+          fs.writeFile(filePath, text)
+            .then(() => {
+              session.sendQueued(i18('saveEnd', [config.logSaveDir, fileName]))
+              // 所在平台的资源系统
+              if (session.platform == 'onebot') {
+                session.onebot.uploadGroupFile(session.guildId, filePath, fileName)
+              } else {
+                session.sendQueued(h.file('file:///' + filePath))
+              }
+              // todo webdav
+            })
+            .catch(e => {
+              log.warn(e)
+              return i18('saveFail')
+            })
           // 上传文本分享网站
-          // todo 
           if (config.netcutOn) {
             let link = await upLogNetcut(ctx, t2)
             if (link != null) {
               log.info(link)
-              session.sendQueued(i18('upLogNetcut', [link,config.netcutPwd]))
+              session.sendQueued(i18('upLogNetcut', [link, config.netcutPwd]))
             } else {
               session.sendQueued(i18('upLogNetcutNot'))
             }
           }
+          // todo 上传语雀文档
           session.sendQueued(i18('getEnd'))
           break;
         case 'rm':
@@ -248,9 +266,9 @@ export function apply(ctx: Context, config: Config) {
           logInfo.isOn = false
           logInfo.nowLogName = 'recall'
           let index = logInfo.logList.indexOf(argv.args[1])
-          if(index > -1){logInfo.logList.splice(index, 1)}
-          await ctx.database.setChannel(session.platform, session.channelId,{logInfo: logInfo})
-          session.sendQueued(i18('logRm',[session.channelId,argv.args[1]]))
+          if (index > -1) { logInfo.logList.splice(index, 1) }
+          await ctx.database.setChannel(session.platform, session.channelId, { logInfo: logInfo })
+          session.sendQueued(i18('logRm', [session.channelId, argv.args[1]]))
           break;
         default:
           session.send('请注意空格')
@@ -309,23 +327,8 @@ function addName(name: string, arr: string[], num = 1) {
   }
 }
 
-async function logSave(filePath: string, text: string) {
-  fs.writeFile(filePath, text, (err) => {
-    if (err) {
-      log.warn('保存 log 文件失败！', err)
-      return 'not'
-    }
-  })
-  return 'ok'
-}
 
-function randomString(length: number) {
-  let str = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let result = '';
-  for (let i = length; i > 0; --i)
-    result += str[Math.floor(Math.random() * str.length)];
-  return result;
-}
+
 
 async function upLogNetcut(ctx: Context, text: { text: string, pwd: string }, num = 1) {
   if (num > 10) {

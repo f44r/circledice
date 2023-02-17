@@ -1,22 +1,10 @@
 import { Context, Logger, Schema, Session } from 'koishi'
-import { Config } from './index'
-import { GameSpace, Character, PlayerData ,Assets} from './lib/types'
-import { dice } from './index'
+import { dice, Config } from '.'
 
 export const name = 'Dice_st'
 const log = new Logger('CircleDice/pc:')
 
-declare module 'koishi' {
-  interface Tables {
-    circledice_pc: Character
-  }
-  interface User {
-    player: PlayerData
-  }
-  interface Channel {
-    gameSpace: GameSpace
-  }
-}
+
 
 export function apply(ctx: Context, config: Config) {
   ctx.model.extend('circledice_pc', {
@@ -74,10 +62,10 @@ function newCha(text: string, rule = 'coc7') {
       cache = textParse(text)
       if (!cache[0]) return [false, cache[1]]
       cache = cache[1] as object
-      let typeID:Assets['type'] = 0
+      let typeID: Assets['type'] = 0
       for (let key in cache) {
         typeID = dice.getAssetsType(cache[key])
-        assets.set(key,{type:typeID,value:cache[key]})
+        assets.set(key, { type: typeID, value: cache[key] })
       }
 
       if (assets.has('闪避')) assets.set('闪避', { type: 1, value: assets.get('敏捷').value / 2 });
@@ -94,6 +82,7 @@ function newCha(text: string, rule = 'coc7') {
   return ['yes', cha]
 }
 
+// 现在看一眼，还能优化，但是 toDo：一个真正的 DSL
 /** 字符串解析函数\
  * 对于 力量50速度:60精密度=A;能力(射程=50,类型=自动)\
  * 可以解析为对象:
