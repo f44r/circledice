@@ -2,10 +2,11 @@ import { Context, Logger, Schema, User } from 'koishi'
 import * as Dice_r from './Dice_r'
 import * as Dice_pc from './Dice_pc'
 import * as Dice_log from './Dice_log'
+import * as cmd from './cmd'
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import vm from './lib/dicescript'
-import { dice as vm2 } from '@onedice/core'
+import { vm } from './lib/dicescript'
+import  * as vm2  from '@onedice/core'
 
 
 declare module 'koishi' {
@@ -31,14 +32,16 @@ interface GameSpaceData {
 interface PlayerData {
   version: string
   publicPc: number | null;
-  pclist: []
+  pclist: [number, string][]
   hiyDice: number[]
   newPcPre: boolean
 }
 
 interface CharacterData {
   id: number
+  master: number
   assets: [string, Assets][]
+  /** 本来是想把历史记录也放到 assets 里的，但是为了防止有人 st 瞎改就提了一级 */
   history: hiy
 }
 
@@ -90,7 +93,7 @@ export interface RollRet {
 export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
     useRollVM: Schema.union(['diceScript', 'oneDice']).default('diceScript').description('使用那种骰点解析方式：'),
-    newPcPre: Schema.boolean().default(true).description('新群录入属性时是否默认新建角色：')
+    newPcPre: Schema.boolean().default(true).description('是否在每个群都创建一张角色卡并绑定：')
   }).description('基本配置'),
   Schema.object({
     uploadPC: Schema.string().description('上传空白人物卡绝对路径'),
@@ -106,9 +109,6 @@ export const name = 'circledice'
 export const using = ['database', 'cron'] as const
 const log = new Logger('CircleDice/dice:')
 
-const diceInit: [string, Assets][] = [
-  ['maxPcId', { type: 1, value: 1 }]
-]
 
 let dice: Dice;
 
@@ -116,6 +116,7 @@ export function apply(ctx: Context, config: Config) {
   // 扩展数据模型
   ctx.model.extend('circledice_pc', {
     'id': 'unsigned',
+    'master': 'unsigned',
     'assets': {
       type: 'json',
       initial: []
@@ -153,7 +154,7 @@ export function apply(ctx: Context, config: Config) {
   ctx.on('ready', () => {
     let dir = path.join(ctx.baseDir, config.logSaveDir)
     fs.stat(dir)
-    .then(stat => log.info('Log 目录创建于',new Date(stat.birthtimeMs).toLocaleString()))
+      .then(stat => log.info('Log 目录创建于', new Date(stat.birthtimeMs).toLocaleString()))
       .catch(err => {
         err.code == 'ENOENT' ?
           fs.mkdir(dir, { recursive: true })
@@ -164,11 +165,22 @@ export function apply(ctx: Context, config: Config) {
 
   })
 
+  ctx.on('dispose', () => {
+    dice.save()
+  })
+
+  ctx.using(['cron'], (ctx) => {
+    ctx.cron('*/5 * * * *', () => {
+      dice.save()
+    })
+  })
+
   log.info('CircleDice 已启动...正在尝试初始化数据')
   dice = new Dice(ctx, config)
   ctx.plugin(Dice_r, config)
   ctx.plugin(Dice_pc, config)
   ctx.plugin(Dice_log, config)
+  ctx.plugin(cmd, config)
   //ctx.on('before-send') 是否 bot off 完全静默？
   //ctx.on('brfore-parse') todo 二次解析指令
 }
@@ -177,7 +189,7 @@ export function apply(ctx: Context, config: Config) {
 class Dice {
   ctx: Context
   config: Config
-  chAll: Map<number, CharacterData>
+  chAll: Map<number, Character>
   knight: Character
   maxPcId: number
 
@@ -188,7 +200,7 @@ class Dice {
       .then(() => {
         log.info(` Knight 已上线。\n记录角色数量：${this.maxPcId} | 实际角色数量：${this.chAll.size}\n`)
       })
-      //.catch((err)=>log.warn('加载数据异常',err))
+    //.catch((err)=>log.warn('加载数据异常',err))
   }
 
   // 依稀记得设计这个加载机制原因是 db.create 返回没有 id 字段，没法确定 ID
@@ -199,74 +211,82 @@ class Dice {
     // 第一次
     if (data.length == 0) {
       data.push({
-        id: 1,
-        'assets': diceInit,
+        'id': 1,
+        'master': 0,
+        'assets': [
+          ['maxPcId', { type: 1, value: 1 }],
+          ['name', { type: 4, value: 'knight' }]
+        ],
         'history': {}
       })
     }
     // 真构造（？
     data.forEach(ele => {
-      this.chAll.set(ele.id, ele)
+      this.chAll.set(ele.id,new Character(ele))
     })
-    this.knight = this.getChRaw(1) // 圆桌骑士x
+    this.knight = this.chAll.get(1) // 圆桌骑士x
     this.maxPcId = this.knight.get('maxPcId')
   }
 
-  save(ctx: Context) {
+  save() {
     let data: CharacterData[] = []
+
     this.chAll.forEach(ch => {
       data.push({
         id: ch.id,
-        assets: ch.assets,
+        master: ch.master,
+        assets: [...ch.assets],
         history: ch.history
       })
     })
-    ctx.database.upsert('circledice_pc', data)
+    this.ctx.database.upsert('circledice_pc', data)
       .then(() => log.info(`角色数据保存完成，共计 ${data.length} 名。`))
   }
 
 
-  getChRaw(id: number): Character {
-    return new Character(this.chAll.get(id))
-  }
 
-  getCh(u: User, g: GameSpaceData) {
-    let pcid = g.team[u.id]
-    if (pcid) {
+  getCh(u: Pick<User, 'id' | 'player'>, g: GameSpaceData) {
+    let id = g.team[u.id]
+    if (id) {
       // 绑卡状态
-      return this.getChRaw(pcid)
+      return this.chAll.get(id)
     } else {
       let ch: Character
       if (u.player.newPcPre) {
         // 每群新建
-        ch = this.newCh()
+        ch = this.newCh(u)
         g.team[u.id] = ch.id
+        u.player.pclist.push([ch.id, ch.name])
         return ch
       } else {
         // 使用全局
-        pcid = u.player.publicPc
-        if (!pcid) {
+        id = u.player.publicPc
+        if (!id) {
           // 从来没有用过，新建一张
-          let ch = this.newCh()
+          let ch = this.newCh(u)
           u.player.publicPc = ch.id
           return ch
         } else {
-          return this.getChRaw(pcid)
+          return this.chAll.get(id)
         }
       }
     }
   }
 
   // 新建角色
-  newCh() {
+  newCh(u: Pick<User, 'id' | 'player'>) {
     this.maxPcId++
+    this.knight.set('maxPcId',this.maxPcId)
     let e: CharacterData = {
       id: this.maxPcId,
+      master: u.id,
       assets: [],
       history: {}
     }
-    this.chAll.set(this.maxPcId, e)
-    return new Character(e)
+    let ch = new Character(e)
+    this.chAll.set(this.maxPcId, ch)
+    log.info(`创建角色：[${ch.id}]${ch.name}`)
+    return ch
   }
 
   roll(text: string): RollRet {
@@ -288,7 +308,7 @@ class Dice {
         try {
           mctx.Run(text)
           if (mctx.Error) {
-            ret.err = `语法异常: ${mctx.Error.Error()}`
+            ret.err = `语法异常: ${mctx.Error.error()}`
           } else {
             ret.detail = mctx.Detail
             ret.ret = +mctx.Ret.ToString() || 0
@@ -302,7 +322,7 @@ class Dice {
       case 'oneDice':
         // 还没看完源码，记得有个未知符号错误可用 rest 属性 todo
         try {
-          const [value, root] = vm2(text)
+          const [value, root] = vm2.dice(text)
           ret.ret = value
           ret.detail = root.toString()
           ret.ok = true
@@ -317,12 +337,14 @@ class Dice {
 class Character {
   id: number
   name: string
+  master:number
   assets: Map<string, Assets>
   history: hiy
 
   constructor(ele: CharacterData) {
     this.assets = new Map(ele.assets)
     this.id = ele.id
+    this.master = ele.master
     this.name = this.get('name', 4) // 等价于 this.get('name','string') 那个用得顺手用那个
     this.history = {
       'coc7success': {},
@@ -331,33 +353,91 @@ class Character {
   }
 
   /**
-   * 获取角色卡数据
-   * @param key 键值
-   * @param type 类型，如果不存在默认 1 ;指定类型
+   * 获取角色卡数据 不存在返回 1\
+   * 指定类型时且不存在时返回对应类型默认值
    */
-  get(key: string, type: AssetsNameT | AssetsName = 1) {
-    type = assetsAs(type)
-    let ret = this.assets.get(key)
-    if (!ret) return assetsBase(type)
-    if (type != ret.type) {
+  get(key: string, type?: AssetsNameT | AssetsName) {
+    if (this.assets.has(key)) {
+      return this.assets.get(key).value
+    }
+    if (type) {
+      type = assetsAs(type)
       return assetsBase(type)
     }
-    return ret.value
+    return 1
+  }
+  /** 返回类型，默认 1 */
+  getType(key: string) {
+    if (this.assets.has(key)) {
+      return this.assets.get(key).type
+    }
+    return 1
+  }
+
+  /**
+ * 删除角色卡数据，类型错误/不存在返回 false
+ * @param key 键值
+ * @param type 类型，默认 1 
+ */
+  del(key: string, type: AssetsNameT | AssetsName = 1) {
+    type = assetsAs(type)
+    let ret = this.assets.get(key)
+    if (!ret) return true
+    if (type != ret.type) {
+      return false
+    }
+    this.assets.delete(key)
+    return true
   }
 
   /**
    * 设置角色数据
    * @param key 键值
    * @param value 变量值
-   * @param type 指定类型
+   * @param type 指定类型，默认 1
    */
-  set(key: string, value: any, type: AssetsName | AssetsNameT = 1) {
-    type = assetsAs(type)
-    let a: Assets = {
-      'type': type,
-      'value': value
+  set(key: string, value: any, type?: AssetsName | AssetsNameT) {
+    if (type == undefined) {
+      let ret = this.assets.get(key)
+      if (ret != undefined) {
+        // 修改
+        this.assets.set(key, { type: ret.type, value: value })
+        null
+      } else {
+        this.assets.set(key, { type: 1, value: value })
+      }
+    } else {
+      // 指定类型
+      type = assetsAs(type)
+      let a: Assets = {
+        'type': type,
+        'value': value
+      }
+      this.assets.set(key, a)
     }
-    this.assets.set(key, a)
+  }
+
+  /** 随便设置什么，类型自动判断，虽然可能有错 */
+  setAny(key: string, value: any) {
+    let i: AssetsNameT = 0
+    switch (typeof value) {
+      case 'number':
+        i = undefined // 防止破坏一些被设置 const 的 assets 被改成 number，set 时自行判断就好
+        break;
+      case 'string':
+        i = dice.roll(value).ok ? 3 : 4
+        break;
+      case 'object':
+        i = 5
+        break;
+      default:
+        i = 0
+    }
+    this.set(key, value, i)
+  }
+
+  has(k: string) {
+    return this.assets.has(k)
   }
 
   /**
@@ -378,10 +458,10 @@ class Character {
   }
 }
 
-export { dice }
+export { dice, Character }
 
 // 这里放一些常用的工具函数
-/** 生成随机字符 */
+/** 生成 length 长度的随机字符 */
 export function randomString(length: number) {
   let str = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let result = '';
@@ -390,7 +470,7 @@ export function randomString(length: number) {
   return result;
 }
 
-/** 根据资源别名返回真实编号 */
+/** 根据资源别名返回真实序号 */
 function assetsAs(t: string | number): AssetsNameT {
   if (typeof t == 'number')
     return t as AssetsNameT;
@@ -404,7 +484,7 @@ function assetsAs(t: string | number): AssetsNameT {
   }
 }
 
-/** 返回各个函数的默认值 */
+/** 返回各类型的默认值 */
 function assetsBase(a: AssetsNameT) {
   switch (a) {
     case 0: case 1: case 2: return 1;

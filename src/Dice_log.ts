@@ -48,7 +48,7 @@ type LogIt = {
   /** 平台 */
   platform: string
 }
-
+export const using = ['database', 'cron'] as const
 export function apply(ctx: Context, config: Config) {
   ctx.i18n.define('zh', require('./locales/zh.yml'))
 
@@ -97,7 +97,7 @@ export function apply(ctx: Context, config: Config) {
   // 记录自己收到的消息
   ctx.on('message', async (session) => {
     let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo'])
-    let logInfo = data.logInfo
+    let logInfo = data.logInfo || { isOn: false, nowLogName: 'recall', logList: [] }
     //let ch = dice.getCurrentPC(session)
     //session.username = ch.name
     let logIt = createLogIt(session, logInfo)
@@ -185,7 +185,7 @@ export function apply(ctx: Context, config: Config) {
           return i18('logNew', [logInfo.nowLogName])
         case 'on':
           if (args[1]) logInfo.nowLogName = args[1];
-          if(logInfo.nowLogName == 'recall'){
+          if (logInfo.nowLogName == 'recall') {
 
           }
           logInfo.isOn = true
@@ -214,7 +214,7 @@ export function apply(ctx: Context, config: Config) {
             text += `*${It.ChName}（${session.uid}|${new Date(It.time).toLocaleString()}）*\n\n> ${It.context}\n\n`
           })
           text += '**中之人**\n\n'
-          Object.keys(ls).forEach(x=>{
+          Object.keys(ls).forEach(x => {
             text += '- ' + x + '\n\n'
           })
           text += session.platform

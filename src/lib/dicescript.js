@@ -58155,4 +58155,4 @@ $flushConsole();
 }).call(this);
 //# sourceMappingURL=dicescript.js.map
 
-exports.default = dice
+exports.vm = global.dice

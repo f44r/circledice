@@ -1,5 +1,5 @@
 import { Context, Logger, Schema, Session } from 'koishi'
-import { dice, Config } from '.'
+import { dice, Config, Character } from '.'
 
 export const name = 'Dice_st'
 const log = new Logger('CircleDice/pc:')
@@ -7,46 +7,25 @@ const log = new Logger('CircleDice/pc:')
 
 
 export function apply(ctx: Context, config: Config) {
-  ctx.model.extend('circledice_pc', {
-    'id': 'unsigned',
-    'name': 'string',
-    'version': 'string',
-    'clear': 'boolean',
-    'token': 'string',
-    'assets': 'json',
-    'history': 'json'
-  })
-  ctx.model.extend('user', {
-    player: 'json',
-  })
-  ctx.model.extend('channel', {
-    gameSpace: 'json',
-  })
   ctx.command('st <text:text>')
-    .userFields(['player'])
+    .userFields(['id', 'player'])
     .channelFields(['gameSpace'])
     .action((argv, text) => {
-
+      const { session } = argv
+      let ch = dice.getCh(session.user, session.channel.gameSpace)
+      stMain(text, ch, session.channel.gameSpace.rule)
     })
 
 }
 
-function newCha(text: string, rule = 'coc7') {
-  let cha = dice.createCha()
-  const rexRet = text.match(/^([\s\S]{1,10}?)-/)
-  if (rexRet) {
-    cha.name = rexRet[1];
-    text = text.slice(rexRet[0].length)
-  }
-
-  let assets: Character['assets'] = new Map(), cache: any
+function stMain(text: string, ch: Character, rule = 'coc7') {
   switch (rule) {
     case 'coc7':
       const tempAtt = [
         '力量', '敏捷', '意志',
         '体质', '外貌', '教育',
         '体型', '智力', '幸运']
-      tempAtt.forEach(x => assets.set(x, { type: 2, value: 50 }))
+      tempAtt.forEach(x => ch.set(x, 0, 'const')) // 防止其他地方 set 时变成 number
       const tempSkill = {
         '会计': 5, '人类学': 1, '估价': 5, '考古学': 1, '取悦': 15, '攀爬': 20,
         '计算机使用': 5, '乔装': 5, '汽车驾驶': 20, '电气维修': 10, '电子学': 1,
@@ -56,30 +35,17 @@ function newCha(text: string, rule = 'coc7') {
         '驾驶': 1, '精神分析': 1, '心理学': 10, '骑术': 5, '妙手': 10, '侦查': 25,
         '潜行': 20, '生存': 10, '游泳': 20, '投掷': 20, '追踪': 10, '驯兽': 5
       }
-      cache = Object.values(tempSkill)
-      Object.keys(tempSkill).forEach((x, y) => assets.set(x, { type: 1, value: cache[y] }))
-
-      cache = textParse(text)
-      if (!cache[0]) return [false, cache[1]]
-      cache = cache[1] as object
-      let typeID: Assets['type'] = 0
-      for (let key in cache) {
-        typeID = dice.getAssetsType(cache[key])
-        assets.set(key, { type: typeID, value: cache[key] })
+      Object.entries(tempSkill).forEach(x => ch.set(x[0], x[1], 'number'))
+      Object.entries(textParse(text)).forEach(x => ch.setAny(x[0], x[1]))
+      if (ch.has('闪避')) ch.set('闪避', Math.ceil(ch.get('敏捷') / 2), 'const');
+      if (ch.has('db')) {
+        let [t1, t2] = showDB(ch.get('力量'), ch.get('体型'))
+        ch.set('db', t1, 'const')
+        ch.set('体格', t2, 'const')
       }
-
-      if (assets.has('闪避')) assets.set('闪避', { type: 1, value: assets.get('敏捷').value / 2 });
-      if (assets.has('db')) {
-        cache = showDB(assets.get('力量').value, assets.get('体型').value)
-        assets.set('db', { type: 2, value: cache[0] })
-        assets.set('体格', { type: 2, value: cache[1] })
-      }
-
+      null
       break;
   }
-  cha.assets = assets
-  dice.newCha(cha)
-  return ['yes', cha]
 }
 
 // 现在看一眼，还能优化，但是 toDo：一个真正的 DSL
@@ -98,7 +64,7 @@ function newCha(text: string, rule = 'coc7') {
  */
 function textParse(text: string) {
   text = text.replace(/:|：/g, '=').replace(/（/g, '(').replace(/）/g, ')').replace(/，|,|；/g, ';')
-  let key = '', val = '', cache = []
+  let key = '', val = ''
   let ret = {}, i = 0, tag = true
   function isSem(s1: any, s2: any) {
     if (!isNaN(Number(s1))) {
@@ -131,9 +97,7 @@ function textParse(text: string) {
       i++
     }
     if (text[i] == ')') {
-      cache = textParse(val)
-      if (!cache[0]) return [false, cache[1]]
-      ret[key] = cache[1]
+      ret[key] = textParse(val)
       key = ''
       val = ''
       tag = true
@@ -169,7 +133,7 @@ function textParse(text: string) {
     val += text[i]
     i++
   }
-  return [true, ret]
+  return ret
 }
 
 

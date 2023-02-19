@@ -9,7 +9,7 @@ declare namespace vm {
         disableStmts: boolean,
     }
     export interface Error {
-        Error():string
+        error():string
     }
     export interface Ret {
         ToString():string
@@ -23,4 +23,4 @@ declare namespace vm {
         Ret:Ret
     }
 }
-export default vm
+export { vm } 
