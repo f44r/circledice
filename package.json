@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@onedice/core": "^1.0.2",
+    "lodash-es": "^4.17.21",
     "webdav": "5.0.0-r3"
   }
 }

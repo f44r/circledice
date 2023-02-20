@@ -10,10 +10,11 @@ export function apply(ctx: Context, config: Config) {
   ctx.command('st <text:text>')
     .userFields(['id', 'player'])
     .channelFields(['gameSpace'])
-    .action((argv, text) => {
+    .action(async (argv, text) => {
       const { session } = argv
-      let ch = dice.getCh(session.user, session.channel.gameSpace)
-      stMain(text, ch, session.channel.gameSpace.rule)
+      const { user,channel } = argv.session
+      let ch = await dice.getCh(user, channel?.gameSpace)
+      stMain(text, ch, channel.gameSpace.rule)
     })
 
 }

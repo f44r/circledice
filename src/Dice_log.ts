@@ -97,7 +97,7 @@ export function apply(ctx: Context, config: Config) {
   // 记录自己收到的消息
   ctx.on('message', async (session) => {
     let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo'])
-    let logInfo = data.logInfo || { isOn: false, nowLogName: 'recall', logList: [] }
+    let logInfo = data?.logInfo ?? { isOn: false, nowLogName: 'recall', logList: [] } // 似乎是优先级/异步问题，第一条消息 -> 数据库初始化 | 消息记录 有时候会获取不到 logInfo
     //let ch = dice.getCurrentPC(session)
     //session.username = ch.name
     let logIt = createLogIt(session, logInfo)

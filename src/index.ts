@@ -5,8 +5,9 @@ import * as Dice_log from './Dice_log'
 import * as cmd from './cmd'
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import { vm } from './lib/dicescript'
-import  * as vm2  from '@onedice/core'
+import { vm } from './roll/dicescript'
+import * as vm2 from '@onedice/core'
+import { debounce } from 'lodash-es'
 
 
 declare module 'koishi' {
@@ -38,7 +39,7 @@ interface PlayerData {
 }
 
 interface CharacterData {
-  id: number
+  id?: number
   master: number
   assets: [string, Assets][]
   /** 本来是想把历史记录也放到 assets 里的，但是为了防止有人 st 瞎改就提了一级 */
@@ -125,6 +126,8 @@ export function apply(ctx: Context, config: Config) {
       type: 'json',
       initial: {}
     }
+  }, {
+    autoInc: true
   });
 
   ctx.model.extend('user', {
@@ -165,16 +168,6 @@ export function apply(ctx: Context, config: Config) {
 
   })
 
-  ctx.on('dispose', () => {
-    dice.save()
-  })
-
-  ctx.using(['cron'], (ctx) => {
-    ctx.cron('*/5 * * * *', () => {
-      dice.save()
-    })
-  })
-
   log.info('CircleDice 已启动...正在尝试初始化数据')
   dice = new Dice(ctx, config)
   ctx.plugin(Dice_r, config)
@@ -189,72 +182,54 @@ export function apply(ctx: Context, config: Config) {
 class Dice {
   ctx: Context
   config: Config
-  chAll: Map<number, Character>
-  knight: Character
-  maxPcId: number
 
   constructor(ctx: Context, config: Config) {
     this.ctx = ctx
     this.config = config
-    this.load()
-      .then(() => {
-        log.info(` Knight 已上线。\n记录角色数量：${this.maxPcId} | 实际角色数量：${this.chAll.size}\n`)
-      })
-    //.catch((err)=>log.warn('加载数据异常',err))
   }
 
-  // 依稀记得设计这个加载机制原因是 db.create 返回没有 id 字段，没法确定 ID
-  // 现在一想 加个 uuid 字段或者发个 issues 什么的应该能更好的解决（
-  async load() {
-    this.chAll = new Map()
-    let data = await this.ctx.database.get('circledice_pc', { id: { $gt: -1 } })
-    // 第一次
-    if (data.length == 0) {
-      data.push({
-        'id': 1,
-        'master': 0,
-        'assets': [
-          ['maxPcId', { type: 1, value: 1 }],
-          ['name', { type: 4, value: 'knight' }]
-        ],
-        'history': {}
-      })
+  async getChRaw(id: number) {
+    let ch = new Character((await this.ctx.database.get('circledice_pc', id))[0], this)
+    return ch
+  }
+
+  // 新建角色
+  async newCh(u: Pick<User, 'id' | 'player'>) {
+    let data = await this.ctx.database.create('circledice_pc', {
+      master: u.id,
+      assets: [],
+      history: {}
+    })
+    let ch = new Character(data, this)
+    log.info(`创建角色：[${ch.id}]`)
+    return ch
+  }
+
+  async getCh(u: Pick<User, 'id' | 'player'>, g: GameSpaceData) {
+    let id: number
+    if (g) {
+      id = g.team[u.id]
+    } else {
+      // 使用全局
+      id = u.player.publicPc
+      if (!id) {
+        // 从来没有用过，新建一张
+        let ch = await this.newCh(u)
+        u.player.publicPc = ch.id
+        return ch
+      } else {
+        return this.getChRaw(id)
+      }
     }
-    // 真构造（？
-    data.forEach(ele => {
-      this.chAll.set(ele.id,new Character(ele))
-    })
-    this.knight = this.chAll.get(1) // 圆桌骑士x
-    this.maxPcId = this.knight.get('maxPcId')
-  }
 
-  save() {
-    let data: CharacterData[] = []
-
-    this.chAll.forEach(ch => {
-      data.push({
-        id: ch.id,
-        master: ch.master,
-        assets: [...ch.assets],
-        history: ch.history
-      })
-    })
-    this.ctx.database.upsert('circledice_pc', data)
-      .then(() => log.info(`角色数据保存完成，共计 ${data.length} 名。`))
-  }
-
-
-
-  getCh(u: Pick<User, 'id' | 'player'>, g: GameSpaceData) {
-    let id = g.team[u.id]
     if (id) {
       // 绑卡状态
-      return this.chAll.get(id)
+      return this.getChRaw(id)
     } else {
       let ch: Character
       if (u.player.newPcPre) {
         // 每群新建
-        ch = this.newCh(u)
+        ch = await this.newCh(u)
         g.team[u.id] = ch.id
         u.player.pclist.push([ch.id, ch.name])
         return ch
@@ -263,30 +238,14 @@ class Dice {
         id = u.player.publicPc
         if (!id) {
           // 从来没有用过，新建一张
-          let ch = this.newCh(u)
+          let ch = await this.newCh(u)
           u.player.publicPc = ch.id
           return ch
         } else {
-          return this.chAll.get(id)
+          return this.getChRaw(id)
         }
       }
     }
-  }
-
-  // 新建角色
-  newCh(u: Pick<User, 'id' | 'player'>) {
-    this.maxPcId++
-    this.knight.set('maxPcId',this.maxPcId)
-    let e: CharacterData = {
-      id: this.maxPcId,
-      master: u.id,
-      assets: [],
-      history: {}
-    }
-    let ch = new Character(e)
-    this.chAll.set(this.maxPcId, ch)
-    log.info(`创建角色：[${ch.id}]${ch.name}`)
-    return ch
   }
 
   roll(text: string): RollRet {
@@ -336,12 +295,13 @@ class Dice {
 
 class Character {
   id: number
-  name: string
-  master:number
+  master: number
   assets: Map<string, Assets>
   history: hiy
+  dice: Dice
 
-  constructor(ele: CharacterData) {
+  constructor(ele: CharacterData, dice: Dice) {
+    this.dice = dice
     this.assets = new Map(ele.assets)
     this.id = ele.id
     this.master = ele.master
@@ -350,6 +310,14 @@ class Character {
       'coc7success': {},
       'coc7fail': {}
     }
+  }
+
+  get name() {
+    return this.get('name', 4)
+  }
+
+  set name(val) {
+    this.name = val
   }
 
   /**
@@ -415,6 +383,7 @@ class Character {
       }
       this.assets.set(key, a)
     }
+    debounce(this.save(),1000)
   }
 
   /** 随便设置什么，类型自动判断，虽然可能有错 */
@@ -455,6 +424,16 @@ class Character {
         this.history['coc7fail'][k]++ :
         this.history['coc7fail'][k] = 1
     }
+  }
+
+  save() {
+    let ele: CharacterData = {
+      'id': this.id,
+      'master': this.master,
+      'assets': [...this.assets],
+      'history': this.history,
+    }
+    this.dice.ctx.database.upsert('circledice_pc', [ele])
   }
 }
 
