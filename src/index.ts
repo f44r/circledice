@@ -41,31 +41,12 @@ interface PlayerData {
 interface CharacterData {
   id?: number
   master: number
-  assets: [string, Assets][]
+  assets: [string, any][]
   /** 本来是想把历史记录也放到 assets 里的，但是为了防止有人 st 瞎改就提了一级 */
   history: hiy
 }
 
 type hiy = { [ruleName: string]: { [skillName: string]: number } }
-
-type AssetsName = '?' | 'number' | 'const' | 'exp' | 'string' | 'object' // 记忆编号对人实在不友好
-type AssetsNameT = 0 | 1 | 2 | 3 | 4 | 5
-
-interface Assets {
-  /** 标识`ats.value`值的类型 */
-  type: AssetsNameT,
-  /**
-| type | value                      | 用途                  |
-| ---- | -------------------------- | :-------------------- |
-| 1    | 数字                       | COC中的技能检定       |
-| 2    | 数字，但一般不可变（常量） | COC中属性             |
-| 3    | 字符串，为掷骰表达式       | COC中的DB，武器的伤害 |
-| 4    | 字符串，是自然语言          | 背景简介          |
-| 5    | 对象，存有描述武器的属性    | COC 中的武器    |
- 0 为类型不明 
- */
-  value: any
-}
 
 export interface Config {
   uploadPC: string
@@ -296,7 +277,7 @@ class Dice {
 class Character {
   id: number
   master: number
-  assets: Map<string, Assets>
+  assets: Map<string, any>
   history: hiy
   dice: Dice
 
@@ -305,7 +286,7 @@ class Character {
     this.assets = new Map(ele.assets)
     this.id = ele.id
     this.master = ele.master
-    this.name = this.get('name', 4) // 等价于 this.get('name','string') 那个用得顺手用那个
+    this.name = this.get('name')
     this.history = {
       'coc7success': {},
       'coc7fail': {}
@@ -313,7 +294,7 @@ class Character {
   }
 
   get name() {
-    return this.get('name', 4)
+    return this.get('name')
   }
 
   set name(val) {
@@ -324,38 +305,17 @@ class Character {
    * 获取角色卡数据 不存在返回 1\
    * 指定类型时且不存在时返回对应类型默认值
    */
-  get(key: string, type?: AssetsNameT | AssetsName) {
+  get(key: string) {
     if (this.assets.has(key)) {
-      return this.assets.get(key).value
-    }
-    if (type) {
-      type = assetsAs(type)
-      return assetsBase(type)
-    }
-    return 1
-  }
-  /** 返回类型，默认 1 */
-  getType(key: string) {
-    if (this.assets.has(key)) {
-      return this.assets.get(key).type
+      return this.assets.get(key)
     }
     return 1
   }
 
-  /**
- * 删除角色卡数据，类型错误/不存在返回 false
- * @param key 键值
- * @param type 类型，默认 1 
- */
-  del(key: string, type: AssetsNameT | AssetsName = 1) {
-    type = assetsAs(type)
-    let ret = this.assets.get(key)
-    if (!ret) return true
-    if (type != ret.type) {
-      return false
-    }
+
+  /** 删除角色卡数据 */
+  del(key: string) {
     this.assets.delete(key)
-    return true
   }
 
   /**
@@ -364,46 +324,15 @@ class Character {
    * @param value 变量值
    * @param type 指定类型，默认 1
    */
-  set(key: string, value: any, type?: AssetsName | AssetsNameT) {
-    if (type == undefined) {
-      let ret = this.assets.get(key)
-      if (ret != undefined) {
-        // 修改
-        this.assets.set(key, { type: ret.type, value: value })
-        null
-      } else {
-        this.assets.set(key, { type: 1, value: value })
-      }
+  set(key: string, value: any) {
+    if (this.assets.has(key)) {
+      this.assets.set(key, value)
     } else {
-      // 指定类型
-      type = assetsAs(type)
-      let a: Assets = {
-        'type': type,
-        'value': value
-      }
-      this.assets.set(key, a)
+      this.assets.set(key,value)
     }
-    debounce(this.save(),1000)
+    debounce(this.save(), 1000)
   }
 
-  /** 随便设置什么，类型自动判断，虽然可能有错 */
-  setAny(key: string, value: any) {
-    let i: AssetsNameT = 0
-    switch (typeof value) {
-      case 'number':
-        i = undefined // 防止破坏一些被设置 const 的 assets 被改成 number，set 时自行判断就好
-        break;
-      case 'string':
-        i = dice.roll(value).ok ? 3 : 4
-        break;
-      case 'object':
-        i = 5
-        break;
-      default:
-        i = 0
-    }
-    this.set(key, value, i)
-  }
 
   has(k: string) {
     return this.assets.has(k)
@@ -434,6 +363,7 @@ class Character {
       'history': this.history,
     }
     this.dice.ctx.database.upsert('circledice_pc', [ele])
+    return null
   }
 }
 
@@ -447,27 +377,4 @@ export function randomString(length: number) {
   for (let i = length; i > 0; --i)
     result += str[Math.floor(Math.random() * str.length)];
   return result;
-}
-
-/** 根据资源别名返回真实序号 */
-function assetsAs(t: string | number): AssetsNameT {
-  if (typeof t == 'number')
-    return t as AssetsNameT;
-  switch (t) {
-    case 'number': return 1;
-    case 'const': return 2;
-    case 'exp': return 3;
-    case 'string': return 4;
-    case 'object': return 5;
-    default: return 0
-  }
-}
-
-/** 返回各类型的默认值 */
-function assetsBase(a: AssetsNameT) {
-  switch (a) {
-    case 0: case 1: case 2: return 1;
-    case 3: case 4: return '';
-    case 5: return null
-  }
 }
