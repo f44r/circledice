@@ -1,7 +1,7 @@
 import { Context, Logger, Schema, User } from 'koishi'
 import * as Dice_r from './Dice_r'
 import * as Dice_pc from './Dice_pc'
-import * as Dice_log from './Dice_log'
+import * as GameLog from './Dice_log'
 import * as cmd from './cmd'
 import * as fs from 'fs/promises'
 import * as path from 'path'
@@ -33,7 +33,7 @@ interface GameSpaceData {
 interface PlayerData {
   version: string
   publicPc: number | null;
-  pclist: [number, string][]
+  pcList: number[]
   hiyDice: number[]
   newPcPre: boolean
 }
@@ -48,18 +48,7 @@ interface CharacterData {
 
 type hiy = { [ruleName: string]: { [skillName: string]: number } }
 
-export interface Config {
-  uploadPC: string
-  normalRule: string
-  logSaveDir: string
-  netcutPwd: string
-  netcutOn: boolean
-  autoDelLog: number
-  useRollVM: string
-  newPcPre: boolean
-}
-
-export interface RollRet {
+interface RollRet {
   /** 是否运算成功 */
   ok: boolean
   /** 最终结果 */
@@ -72,19 +61,14 @@ export interface RollRet {
   err: string
 }
 
+export interface Config {
+  GameLog: GameLog.default.Config
+}
+
 export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
-    useRollVM: Schema.union(['diceScript', 'oneDice']).default('diceScript').description('使用那种骰点解析方式：'),
-    newPcPre: Schema.boolean().default(true).description('是否在每个群都创建一张角色卡并绑定：')
-  }).description('基本配置'),
-  Schema.object({
-    uploadPC: Schema.string().description('上传空白人物卡绝对路径'),
-    normalRule: Schema.string().default('coc7').description('全局默认规则，现已支持：coc7'),
-    logSaveDir: Schema.string().default('circledice-log').description('保存log的目录'),
-    netcutOn: Schema.boolean().default(true).description('是否上传到 netcut 方便分享？'),
-    netcutPwd: Schema.string().default('pwd').description('分享到 netcut 时的密码'),
-    autoDelLog: Schema.number().default(259200).description('定时删除多少秒前的log')
-  }).description('Log 日志配置')
+    GameLog: GameLog.default.Config,
+  }),
 ])
 
 export const name = 'circledice'
@@ -92,7 +76,7 @@ export const using = ['database', 'cron'] as const
 const log = new Logger('CircleDice/dice:')
 
 
-let dice: Dice;
+let circle: Circle;
 
 export function apply(ctx: Context, config: Config) {
   // 扩展数据模型
@@ -116,7 +100,7 @@ export function apply(ctx: Context, config: Config) {
       type: 'json', initial: {
         'version': 'dev',
         'hiyDice': [0],
-        'pclist': [],
+        'pcList': [],
         'publicPc': null,
         'newPcPre': config.newPcPre
       }
@@ -150,37 +134,62 @@ export function apply(ctx: Context, config: Config) {
   })
 
   log.info('CircleDice 已启动...正在尝试初始化数据')
-  dice = new Dice(ctx, config)
+  circle = new Circle(ctx, config)
   ctx.plugin(Dice_r, config)
   ctx.plugin(Dice_pc, config)
-  ctx.plugin(Dice_log, config)
+  ctx.plugin(GameLog, config)
   ctx.plugin(cmd, config)
-  //ctx.on('before-send') 是否 bot off 完全静默？
-  //ctx.on('brfore-parse') todo 二次解析指令
 }
 
 
-class Dice {
+class Circle {
   ctx: Context
   config: Config
+  chAll: Map<number, Character>
+  knight: Character
 
   constructor(ctx: Context, config: Config) {
     this.ctx = ctx
     this.config = config
+    this.chAll = new Map()
+    this.load()
+      .then(() => log.info('加载完成。'))
+  }
+
+  async load() {
+    let data = await this.ctx.database.stats()
+    if (data.size == 0) {
+      await this.ctx.database.create('circledice_pc', {
+        master: 0,
+        assets: [
+          ['name', 'knight'],
+          ['ID:1', 'knight']
+        ],
+        history: {}
+      })
+      let ID2 = await this.newCh({ id: 0 }) // 创建一张处理错误的角色卡 ID2
+      ID2.name = 'ID2'
+    }
+    this.knight = await this.getChRaw(1)
   }
 
   async getChRaw(id: number) {
-    let ch = new Character((await this.ctx.database.get('circledice_pc', id))[0], this)
+    if (this.chAll.has(id)) {
+      return this.chAll.get(id)
+    }
+    let data = await this.ctx.database.get('circledice_pc', id)
+    if (data.length == 0) {
+      log.warn('错误的角色卡 ID ！')
+      return this.getChRaw(2)
+    }
+    let ch = new Character(data[0], this)
+    this.chAll.set(ch.id, ch)
     return ch
   }
 
   // 新建角色
-  async newCh(u: Pick<User, 'id' | 'player'>) {
-    let data = await this.ctx.database.create('circledice_pc', {
-      master: u.id,
-      assets: [],
-      history: {}
-    })
+  async newCh(u: Pick<User, 'id'>) {
+    let data = await this.ctx.database.create('circledice_pc', { master: u.id, assets: [], history: {} })
     let ch = new Character(data, this)
     log.info(`创建角色：[${ch.id}]`)
     return ch
@@ -188,45 +197,33 @@ class Dice {
 
   async getCh(u: Pick<User, 'id' | 'player'>, g: GameSpaceData) {
     let id: number
-    if (g) {
-      id = g.team[u.id]
-    } else {
-      // 使用全局
-      id = u.player.publicPc
-      if (!id) {
-        // 从来没有用过，新建一张
-        let ch = await this.newCh(u)
-        u.player.publicPc = ch.id
-        return ch
-      } else {
-        return this.getChRaw(id)
-      }
-    }
+    let ch: Character
+    if (g)
+      id = g.team[u.id];
 
     if (id) {
-      // 绑卡状态
-      return this.getChRaw(id)
+      // 群聊绑卡状态
+      ch = await this.getChRaw(id)
     } else {
-      let ch: Character
-      if (u.player.newPcPre) {
+      if (u.player.newPcPre && g) {
         // 每群新建
         ch = await this.newCh(u)
         g.team[u.id] = ch.id
-        u.player.pclist.push([ch.id, ch.name])
-        return ch
+        u.player.pcList.push(ch.id)
       } else {
         // 使用全局
         id = u.player.publicPc
-        if (!id) {
+        if (id == null) {
           // 从来没有用过，新建一张
-          let ch = await this.newCh(u)
+          ch = await this.newCh(u)
           u.player.publicPc = ch.id
-          return ch
+          u.player.pcList.push(ch.id)
         } else {
-          return this.getChRaw(id)
+          ch = await this.getChRaw(id)
         }
       }
     }
+    return ch
   }
 
   roll(text: string): RollRet {
@@ -272,6 +269,10 @@ class Dice {
         return ret
     }
   }
+
+  alias(key: string) {
+
+  }
 }
 
 class Character {
@@ -279,14 +280,14 @@ class Character {
   master: number
   assets: Map<string, any>
   history: hiy
-  dice: Dice
+  circle: Circle
 
-  constructor(ele: CharacterData, dice: Dice) {
-    this.dice = dice
+  constructor(ele: CharacterData, circle: Circle) {
+    this.circle = circle
     this.assets = new Map(ele.assets)
     this.id = ele.id
     this.master = ele.master
-    this.name = this.get('name')
+    this.name = this.assets.get('name') ?? '无名'
     this.history = {
       'coc7success': {},
       'coc7fail': {}
@@ -298,41 +299,30 @@ class Character {
   }
 
   set name(val) {
-    this.name = val
+    this.set('name', val)
+    this.circle.knight.set(`ID:${this.id}`, val)
   }
 
-  /**
-   * 获取角色卡数据 不存在返回 1\
-   * 指定类型时且不存在时返回对应类型默认值
-   */
+  /** 获取角色卡数据 不存在返回 1*/
   get(key: string) {
-    if (this.assets.has(key)) {
+    if (this.has(key)) {
       return this.assets.get(key)
     }
     return 1
   }
-
 
   /** 删除角色卡数据 */
   del(key: string) {
     this.assets.delete(key)
   }
 
-  /**
-   * 设置角色数据
-   * @param key 键值
-   * @param value 变量值
-   * @param type 指定类型，默认 1
-   */
+  /** 添加或修改角色数据 */
   set(key: string, value: any) {
-    if (this.assets.has(key)) {
-      this.assets.set(key, value)
-    } else {
-      this.assets.set(key,value)
-    }
-    debounce(this.save(), 1000)
+    this.assets.set(key, value)
+    debounce(
+      this.save()
+      , 1000)
   }
-
 
   has(k: string) {
     return this.assets.has(k)
@@ -343,7 +333,7 @@ class Character {
    * @param k 技能名
    * @param b 成功还是失败
    */
-  AddCOC7skillHiy(k: string, b: boolean) {
+  AddCOC7Hiy(k: string, b: boolean) {
     if (b) {
       this.history['coc7success'][k] ?
         this.history['coc7success'][k]++ :
@@ -362,12 +352,13 @@ class Character {
       'assets': [...this.assets],
       'history': this.history,
     }
-    this.dice.ctx.database.upsert('circledice_pc', [ele])
+    this.circle.ctx.database.upsert('circledice_pc', [ele])
+      .catch(() => log.info(`更新角色 [${this.id}]${this.name} 数据`))
     return null
   }
 }
 
-export { dice, Character }
+export { circle, Character }
 
 // 这里放一些常用的工具函数
 /** 生成 length 长度的随机字符 */

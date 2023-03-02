@@ -53,3 +53,4 @@ circledice:
       link：{0}
       密码：{1}
     upLogNetcutNot: 上传文本分享网站 netcut 失败！
+    upLogFail: 上传发生 Log 异常，请联系骰主。

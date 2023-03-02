@@ -1,7 +1,9 @@
-import { Context, Logger, Session, h } from 'koishi'
+import { Context, Logger, Session, h, Channel, Schema } from 'koishi'
 import * as fs from 'fs/promises'
+import { createClient } from 'webdav'
 import * as path from 'path'
-import { Config, randomString } from '.'
+import { Config, randomString, circle } from '.'
+import { config } from 'process'
 
 const log = new Logger('CiecleDice/log:')
 
@@ -16,8 +18,6 @@ declare module 'koishi' {
     onebot: any
   }
 }
-
-
 
 type LogInfo = {
   isOn: boolean
@@ -49,6 +49,7 @@ type LogIt = {
   platform: string
 }
 export const using = ['database', 'cron'] as const
+
 export function apply(ctx: Context, config: Config) {
   ctx.i18n.define('zh', require('./locales/zh.yml'))
 
@@ -84,10 +85,7 @@ export function apply(ctx: Context, config: Config) {
   // 记录自己发的消息
   ctx.on('send', async (session) => {
     let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo'])
-    let logInfo = data.logInfo
-    //let ch = dice.getCurrentPC(session)
-    //session.username = ch.name
-    let logIt = createLogIt(session, logInfo)
+    let logIt = createLogIt(session, data.logInfo)
     if (logIt) {
       await ctx.database.create('msg_log', logIt)
       log.info(logIt)
@@ -96,11 +94,18 @@ export function apply(ctx: Context, config: Config) {
 
   // 记录自己收到的消息
   ctx.on('message', async (session) => {
-    let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo'])
-    let logInfo = data?.logInfo ?? { isOn: false, nowLogName: 'recall', logList: [] } // 似乎是优先级/异步问题，第一条消息 -> 数据库初始化 | 消息记录 有时候会获取不到 logInfo
-    //let ch = dice.getCurrentPC(session)
-    //session.username = ch.name
-    let logIt = createLogIt(session, logInfo)
+    let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo', 'gameSpace'])
+    let user = await ctx.database.getUser(session.platform, session.userId, ['id'])
+    let a: [LogInfo, number]
+    if (!data) {
+      a[0] = { isOn: false, nowLogName: 'recall', logList: [] }
+      a[1] = 2
+    } else {
+      a[0] = data.logInfo
+      a[1] = data.gameSpace.team[user.id] ?? 2
+    }
+    session.username = circle.knight.get(`ID:${a[1]}`)
+    let logIt = createLogIt(session, a[0])
     if (logIt) {
       await ctx.database.create('msg_log', logIt)
       log.info(logIt)
@@ -120,7 +125,7 @@ export function apply(ctx: Context, config: Config) {
   ctx.using(['cron'], (ctx) => {
     ctx.cron('* * */1 * *', () => {
       let timestamp1 = (new Date()).valueOf()
-      timestamp1 -= config.autoDelLog * 1000
+      timestamp1 -= config.gameLog.autoDelLog * 1000
       ctx.database.remove('msg_log', {
         isLog: false,
         time: { $lt: timestamp1 }
@@ -147,7 +152,7 @@ export function apply(ctx: Context, config: Config) {
 
       const { session, args } = argv
       let logInfo = session.channel.logInfo
-      function i18(text: string, arr?: string[]) {
+      let i18 = function (text: string, arr?: string[]) {
         return arr ? session.text('circledice.log.' + text, arr) : session.text('circledice.log.' + text)
       }
       log.info(args, logInfo)
@@ -207,49 +212,13 @@ export function apply(ctx: Context, config: Config) {
             isLog: true,
             logName: name
           })
-          let text = '# ' + logInfo.nowLogName + '\n\n'
-          let ls = {}
-          data.forEach(It => {
-            ls[It.uid] = null
-            text += `*${It.ChName}（${session.uid}|${new Date(It.time).toLocaleString()}）*\n\n> ${It.context}\n\n`
-          })
-          text += '**中之人**\n\n'
-          Object.keys(ls).forEach(x => {
-            text += '- ' + x + '\n\n'
-          })
-          text += session.platform
-          data = null
-          let t2 = { text: text, pwd: config.netcutPwd } // 使用引用传递
-          let fileName = `${session.platform}-${session.channelId}-${logInfo.nowLogName}-${randomString(6)}.txt`
-          let filePath = path.join(ctx.baseDir, config.logSaveDir, fileName)
-          // 上传文件
-          fs.writeFile(filePath, text)
+          upLog(ctx, session, data, i18, config.gameLog, logInfo)
             .then(() => {
-              session.sendQueued(i18('saveEnd', [config.logSaveDir, fileName]))
-              // 所在平台的资源系统
-              if (session.platform == 'onebot') {
-                session.onebot.uploadGroupFile(session.guildId, filePath, fileName)
-              } else {
-                session.sendQueued(h.file('file:///' + filePath))
-              }
-              // todo webdav
+              session.sendQueued(i18('getEnd'))
             })
-            .catch(e => {
-              log.warn(e)
-              return i18('saveFail')
+            .catch(() => {
+              session.sendQueued(i18('upLogFail'))
             })
-          // 上传文本分享网站
-          if (config.netcutOn) {
-            let link = await upLogNetcut(ctx, t2)
-            if (link != null) {
-              log.info(link)
-              session.sendQueued(i18('upLogNetcut', [link, config.netcutPwd]))
-            } else {
-              session.sendQueued(i18('upLogNetcutNot'))
-            }
-          }
-          // todo 上传语雀文档
-          session.sendQueued(i18('getEnd'))
           break;
         case 'rm':
           ctx.database.remove('msg_log', {
@@ -327,13 +296,9 @@ function addName(name: string, arr: string[], num = 1) {
   }
 }
 
-
-
-
 async function upLogNetcut(ctx: Context, text: { text: string, pwd: string }, num = 1) {
   if (num > 10) {
-    log.warn('超出上限，停止请求！')
-    return null
+    throw Error('超出上限，停止请求！')
   }
   let rand = randomString(10)
   let headers = {
@@ -363,7 +328,109 @@ async function upLogNetcut(ctx: Context, text: { text: string, pwd: string }, nu
       return upLogNetcut(ctx, text, num)
     default:
       log.warn('未知情形', data)
-      return null
+      throw Error('未知情形')
   }
 }
 
+async function upLogWebdav(obj: { 'text': string, config: Config['gameLog'] }) {
+  const cli = createClient(obj.config.webdavLink, {
+    'username': obj.config.webdavUsername,
+    'password': obj.config.webdavPassword
+  })
+  const mpath = '/circledice/log/'
+  let b = await cli.exists(mpath)
+  if(!b){
+    await cli.createDirectory(mpath)
+  }
+  cli.createWriteStream
+
+}
+
+async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: string, arr?: string[]) => string, config: Config['gameLog'], logInfo: LogInfo) {
+  // 整理为 md 格式
+  let text = '# ' + logInfo.nowLogName + '\n\n'
+  let ls = {}
+  data.forEach(It => {
+    ls[It.uid] = null
+    text += `*${It.ChName}（${It.uid}|${new Date(It.time).toLocaleString()}）*\n\n> ${It.context}\n\n`
+  })
+
+  // 创建本地文件并上传
+  let fileName = `${session.platform}-${session.channelId}-${logInfo.nowLogName}-${randomString(6)}.txt`
+  let filePath = path.join(ctx.baseDir, config.logSaveDir, fileName)
+
+  // 上传文件
+  fs.writeFile(filePath, text)
+    .then(() => {
+      session.send(i18('saveEnd', [config.logSaveDir, fileName]))
+      // 所在平台的资源系统
+      if (session.platform == 'onebot') {
+        session.onebot.uploadGroupFile(session.guildId, filePath, fileName)
+      } else {
+        session.send(h.file('file:///' + filePath))
+      }
+    })
+    .catch(e => {
+      log.warn(e)
+      session.send(i18('saveFail'))
+    })
+
+  // 上传一份原始数据文件，便于解析
+  //fs.writeFile(filePath + '.json', JSON.stringify({ 'ls': ls, 'data': data }))
+
+  // 上传文本分享网站
+  if (config.netcutOn) {
+    try {
+      let link = await upLogNetcut(ctx, { 'text': text, 'pwd': config.netcutPwd })
+      session.send(i18('upLogNetcut', [link, config.netcutPwd]))
+    } catch {
+      session.send(i18('upLogNetcutNot'))
+    }
+  }
+  // webDav
+  if(config.isWebdav){
+      upLogWebdav({ 'text': text, 'config': config })
+      .then(()=>{
+        session.send('上传完成'+config.webdavShare)
+      })
+      .catch(()=>{
+        session.send('上传失败！')
+      })
+  }
+
+  // todo 上传语雀文档
+}
+
+namespace con {
+
+  export interface Config {
+    logSaveDir: string
+    autoDelLog: number
+    // netcut
+    netcutPwd: string
+    netcutOn: boolean
+    // webdav
+    isWebdav: boolean
+    webdavLink: string
+    webdavUsername: string
+    webdavPassword: string
+    webdavShare: string
+  }
+
+  export const Config: Schema<Config> = Schema.object({
+    logSaveDir: Schema.string().default('circledice-log').description('保存log的目录'),
+    autoDelLog: Schema.number().default(259200).description('定时删除多少秒前的log'),
+    //
+    netcutOn: Schema.boolean().default(false).description('是否上传到 netcut 方便分享？'),
+    netcutPwd: Schema.string().default('pwd').description('分享到 netcut 时的密码'),
+    // webdav
+    isWebdav: Schema.boolean().default(false).description('是否上传到支持 webdav 协议的网盘'),
+    webdavLink: Schema.string().description('webdav 网址'),
+    webdavUsername: Schema.string().description('webdav 账号'),
+    webdavPassword: Schema.string().description('webdav 密码'),
+    webdavShare: Schema.string().description('返回分享链接的分享链接？'),
+  }).description('Log 日志配置')
+
+}
+
+export default con
