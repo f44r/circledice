@@ -17,13 +17,22 @@ commands:
   pc:
     description: 提供 pc 管理指令
     usage: |-
-    options:
+      st: 录入角色属性
+      del: 删除角色属性
       new: 创建一个角色
       rm: 删除自己的角色
       list: 查看自己的角色列表
       view: 查看指定角色的详细信息
       bind: 与当前群设置关联
+      nn: 重命名当前角色
       all: 是否使用全局人物卡
+  r:
+    description: 提供掷骰相关指令
+    usage: |-
+    options:
+      result: 骰点理由
+      dice: 骰点式
+      check: 技能、武器鉴定（未实现）
 circledice:
   log:
     pormptNot: 已取消相关操作

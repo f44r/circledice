@@ -278,6 +278,7 @@ class Circle {
 class Character {
   id: number
   master: number
+  _name: string
   assets: Map<string, any>
   history: hiy
   circle: Circle
@@ -287,7 +288,7 @@ class Character {
     this.assets = new Map(ele.assets)
     this.id = ele.id
     this.master = ele.master
-    this.name = this.assets.get('name') ?? '无名'
+    this._name = this.assets.get('name') ?? '无名'
     this.history = {
       'coc7success': {},
       'coc7fail': {}
@@ -295,7 +296,7 @@ class Character {
   }
 
   get name() {
-    return this.get('name')
+    return this._name
   }
 
   set name(val) {
@@ -319,9 +320,9 @@ class Character {
   /** 添加或修改角色数据 */
   set(key: string, value: any) {
     this.assets.set(key, value)
-    debounce(
+    /*debounce(
       this.save()
-      , 1000)
+      , 1000)*/
   }
 
   has(k: string) {
