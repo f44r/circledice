@@ -7,11 +7,11 @@ const log = new Logger('CircleDice/pc:')
 
 
 export function apply(ctx: Context, config: Config) {
-  ctx.command('pc <text>')
+  ctx.command('pc')
     .userFields(['id', 'player'])
     .channelFields(['gameSpace'])
     .option('st', '-s [content]')
-    .option('del', '-d [id[ [skill]')
+    .option('del', '-d [id]')
     .option('new', '-n [name]')
     .option('list', '-l')
     .option('rm', '-r [name]')
@@ -19,7 +19,7 @@ export function apply(ctx: Context, config: Config) {
     .option('bind', '-b')
     .option('nn', '-m [name]')
     .option('all', '-a [bool]')
-    .action(async (argv, text) => {
+    .action(async (argv) => {
       // 兼容常见语法
       if (argv.options.st) argv.args = ['st', argv.options.st]
       if (argv.options.del) argv.args = ['del', argv.options.del]
@@ -38,7 +38,8 @@ export function apply(ctx: Context, config: Config) {
       switch (args[0]) {
         case 'st':
           let ch = await circle.getCh(user, channel?.gameSpace)
-          stMain(text, ch, channel.gameSpace.rule)
+          stMain(args[1], ch, channel.gameSpace.rule)
+          ch.save()
           break;
         case 'del':
           let pcDate_ID
@@ -100,7 +101,7 @@ function stMain(text: string, ch: Character, rule = 'coc7') {
         '力量', '敏捷', '意志',
         '体质', '外貌', '教育',
         '体型', '智力', '幸运']
-      tempAtt.forEach(x => ch.set(x, 0)) // 防止其他地方 set 时变成 number
+      tempAtt.forEach(x => ch.set(x, 0)) // 防止其他地方 set 时变成 number // 加入人物卡机制就无所谓了
       const tempSkill = {
         '会计': 5, '人类学': 1, '估价': 5, '考古学': 1, '取悦': 15, '攀爬': 20,
         '计算机使用': 5, '乔装': 5, '汽车驾驶': 20, '电气维修': 10, '电子学': 1,
@@ -111,7 +112,10 @@ function stMain(text: string, ch: Character, rule = 'coc7') {
         '潜行': 20, '生存': 10, '游泳': 20, '投掷': 20, '追踪': 10, '驯兽': 5
       }
       Object.entries(tempSkill).forEach(x => ch.set(x[0], x[1]))
-      Object.entries(textParse(text)).forEach(x => ch.set(x[0], x[1]))
+      let c = textParse(text);log.info(c)
+      Object.entries(c).forEach(
+        x =>
+        ch.set(x[0], x[1]))
       if (ch.has('闪避')) ch.set('闪避', Math.ceil(ch.get('敏捷') / 2));
       if (ch.has('db')) {
         let [t1, t2] = showDB(ch.get('力量'), ch.get('体型'))

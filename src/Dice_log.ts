@@ -96,13 +96,13 @@ export function apply(ctx: Context, config: Config) {
   ctx.on('message', async (session) => {
     let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo', 'gameSpace'])
     let user = await ctx.database.getUser(session.platform, session.userId, ['id'])
-    let a: [LogInfo, number]
+    let a: [LogInfo, number] = [] as any // 因为数据库初始化也是在 message 事件下，有时获取不到数据，需要临时造一个
     if (!data) {
       a[0] = { isOn: false, nowLogName: 'recall', logList: [] }
       a[1] = 2
     } else {
       a[0] = data.logInfo
-      a[1] = data.gameSpace.team[user.id] ?? 2
+      a[1] = data.gameSpace.team[user?.id ?? 2] ?? 2 // gocq 可以上报自身事件，此时 user 为 undefined
     }
     session.username = circle.knight.get(`ID:${a[1]}`)
     let logIt = createLogIt(session, a[0])
@@ -125,7 +125,7 @@ export function apply(ctx: Context, config: Config) {
   ctx.using(['cron'], (ctx) => {
     ctx.cron('* * */1 * *', () => {
       let timestamp1 = (new Date()).valueOf()
-      timestamp1 -= config.gameLog.autoDelLog * 1000
+      timestamp1 -= config.GameLog.autoDelLog * 1000
       ctx.database.remove('msg_log', {
         isLog: false,
         time: { $lt: timestamp1 }
@@ -212,7 +212,7 @@ export function apply(ctx: Context, config: Config) {
             isLog: true,
             logName: name
           })
-          upLog(ctx, session, data, i18, config.gameLog, logInfo)
+          upLog(ctx, session, data, i18, config.GameLog, logInfo)
             .then(() => {
               session.sendQueued(i18('getEnd'))
             })
@@ -332,21 +332,22 @@ async function upLogNetcut(ctx: Context, text: { text: string, pwd: string }, nu
   }
 }
 
-async function upLogWebdav(obj: { 'text': string, config: Config['gameLog'] }) {
+async function upLogWebdav(obj: { 'text': string, config: Config['GameLog'],name:string }) {
   const cli = createClient(obj.config.webdavLink, {
     'username': obj.config.webdavUsername,
     'password': obj.config.webdavPassword
   })
   const mpath = '/circledice/log/'
-  let b = await cli.exists(mpath)
+  let b = await cli.exists(mpath+obj)
   if(!b){
     await cli.createDirectory(mpath)
   }
-  cli.createWriteStream
-
+  cli.putFileContents(mpath+obj.name,obj.text)
+  .then(()=>log.info('webdav 上传完成'))
+  .catch(()=>log.info('webdav 上传失败'))
 }
 
-async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: string, arr?: string[]) => string, config: Config['gameLog'], logInfo: LogInfo) {
+async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: string, arr?: string[]) => string, config: Config['GameLog'], logInfo: LogInfo) {
   // 整理为 md 格式
   let text = '# ' + logInfo.nowLogName + '\n\n'
   let ls = {}
@@ -387,9 +388,10 @@ async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: 
       session.send(i18('upLogNetcutNot'))
     }
   }
+
   // webDav
   if(config.isWebdav){
-      upLogWebdav({ 'text': text, 'config': config })
+      upLogWebdav({ 'text': text, 'config': config,'name':fileName })
       .then(()=>{
         session.send('上传完成'+config.webdavShare)
       })

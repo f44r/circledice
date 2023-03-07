@@ -63,9 +63,15 @@ interface RollRet {
 
 export interface Config {
   GameLog: GameLog.default.Config
+  newPcPre:boolean
+  useRollVM:string
 }
 
 export const Config: Schema<Config> = Schema.intersect([
+  Schema.object({
+    useRollVM: Schema.union(['diceScript', 'oneDice']).default('diceScript').description('使用那种骰点解析方式：'),
+    newPcPre: Schema.boolean().default(true).description('是否在每个群都创建一张角色卡并绑定：')
+  }).description('基本配置'),
   Schema.object({
     GameLog: GameLog.default.Config,
   }),
@@ -120,7 +126,7 @@ export function apply(ctx: Context, config: Config) {
 
   // 创建相关目录等
   ctx.on('ready', () => {
-    let dir = path.join(ctx.baseDir, config.logSaveDir)
+    let dir = path.join(ctx.baseDir, config.GameLog.logSaveDir)
     fs.stat(dir)
       .then(stat => log.info('Log 目录创建于', new Date(stat.birthtimeMs).toLocaleString()))
       .catch(err => {
@@ -301,7 +307,7 @@ class Character {
 
   set name(val) {
     this.set('name', val)
-    this.circle.knight.set(`ID:${this.id}`, val)
+    this.circle.knight?this.circle.knight.set(`ID:${this.id}`, val):log.warn('警告！初始化未完成！记录角色名失败！')
   }
 
   /** 获取角色卡数据 不存在返回 1*/
@@ -320,9 +326,8 @@ class Character {
   /** 添加或修改角色数据 */
   set(key: string, value: any) {
     this.assets.set(key, value)
-    /*debounce(
-      this.save()
-      , 1000)*/
+    log.info(key,value)
+    //debounce(()=>{this.save()}, 1000)
   }
 
   has(k: string) {
