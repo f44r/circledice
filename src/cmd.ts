@@ -13,7 +13,27 @@ export function apply(ctx: Context, config: Config) {
       const { user, channel } = argv.session
       let ch = await circle.getCh(user, channel ? channel.gameSpace : null)
       log.info(ch.assets)
-      return ch.get(skill)
+      if(!Number.isNaN(+ch.get(skill))){
+        //没写房规，小子
+        let r = Math.ceil(Math.random()*100)
+        let said = ch.name + '进行的' + skill + '鉴定为：' + r + '/' + ch.get(skill)
+        if(r == 100){
+          said += '大失败'
+        }else if(r == 1){
+          said += '大成功'
+        }else if(r > +ch.get(skill)){
+          said += '失败'
+        }else if(r < Math.floor(+ch.get(skill)/5)){
+          said += '极难成功'
+        }else if(r < Math.floor(+ch.get(skill)/2)){
+          said += '困难成功'
+        }else{
+          said += '成功'
+        }
+        return said
+      }else{
+        //这是复杂skill，如枪械
+      }
     })
   ctx.command('roll [text]')
     .action((_, text) => {

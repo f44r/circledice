@@ -294,7 +294,7 @@ class Character {
     this.assets = new Map(ele.assets)
     this.id = ele.id
     this.master = ele.master
-    this._name = this.assets.get('name') ?? '无名'
+    this.name = this.assets.get('name') ?? '无名'
     this.history = {
       'coc7success': {},
       'coc7fail': {}
@@ -302,7 +302,7 @@ class Character {
   }
 
   get name() {
-    return this._name
+    return this.assets.get('name')
   }
 
   set name(val) {

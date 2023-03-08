@@ -204,7 +204,7 @@ export function apply(ctx: Context, config: Config) {
           return i18('logList', [logInfo.logList.join('\n')])
         case 'get':
           let name = args[1] ?? logInfo.nowLogName
-          session.sendQueued(i18('logGet', [logInfo.nowLogName]))
+          session.sendQueued(i18('logGet', [args[1] ?? logInfo.nowLogName]))
           let data = await ctx.database.get('msg_log', {
             botId: session.selfId,
             cid: session.channelId,

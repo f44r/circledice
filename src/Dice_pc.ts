@@ -71,7 +71,7 @@ export function apply(ctx: Context, config: Config) {
           session.sendQueued(pclist)
           break;
         case 'rm':
-          if (!Number.isNaN(args[1])) {
+          if (!Number.isNaN(+args[1])) {
             let pclist: Number[] = new Array()
             pcData.forEach(pc => {
               let ch = new Character(pc, circle)
@@ -99,13 +99,13 @@ export function apply(ctx: Context, config: Config) {
           let ch = await circle.getCh(user, channel?.gameSpace)
           let chData = ch.name + '的详细信息为：\n'
           ch.assets.forEach((value, key) => {
-            chData += key + ':' + value + '\n'
+            chData += key + ':' + value + ' '
           })
           session.sendQueued(chData)
           break;
         }
         case 'bind':
-          if (!Number.isNaN(args[1])) {
+          if (!Number.isNaN(+args[1])) {
             let pclist: Number[] = new Array()
             pcData.forEach(pc => {
               let ch = new Character(pc, circle)
@@ -129,7 +129,7 @@ export function apply(ctx: Context, config: Config) {
           break;
         }
         case 'all':
-          if(!Number.isNaN(args[1])){
+          if(!Number.isNaN(+args[1])){
             let pclist: Number[] = new Array()
             pcData.forEach(pc => {
               let ch = new Character(pc, circle)
