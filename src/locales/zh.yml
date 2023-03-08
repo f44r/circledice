@@ -23,9 +23,9 @@ commands:
       rm: 删除自己的角色
       list: 查看自己的角色列表
       view: 查看指定角色的详细信息
-      bind: 与当前群设置关联
+      bind: 绑定群聊人物卡
       nn: 重命名当前角色
-      all: 是否使用全局人物卡
+      all: 绑定全局人物卡
   r:
     description: 提供掷骰相关指令
     usage: |-

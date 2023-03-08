@@ -204,7 +204,7 @@ export function apply(ctx: Context, config: Config) {
           return i18('logList', [logInfo.logList.join('\n')])
         case 'get':
           let name = args[1] ?? logInfo.nowLogName
-          session.sendQueued(i18('logGet', [logInfo.nowLogName]))
+          session.sendQueued(i18('logGet', [args[1] ?? logInfo.nowLogName]))
           let data = await ctx.database.get('msg_log', {
             botId: session.selfId,
             cid: session.channelId,
@@ -349,7 +349,9 @@ async function upLogWebdav(obj: { 'text': string, config: Config['GameLog'],name
 
 async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: string, arr?: string[]) => string, config: Config['GameLog'], logInfo: LogInfo) {
   // 整理为 md 格式
-  let text = '# ' + logInfo.nowLogName + '\n\n'
+  let text = '# '
+  text += session.argv.args[1] ?? logInfo.nowLogName
+  text += '\n\n'
   let ls = {}
   data.forEach(It => {
     ls[It.uid] = null
@@ -357,7 +359,7 @@ async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: 
   })
 
   // 创建本地文件并上传
-  let fileName = `${session.platform}-${session.channelId}-${logInfo.nowLogName}-${randomString(6)}.txt`
+  let fileName = `${session.platform}-${session.channelId}-${session.argv.args[1] ?? logInfo.nowLogName}-${randomString(6)}.txt`
   let filePath = path.join(ctx.baseDir, config.logSaveDir, fileName)
 
   // 上传文件
