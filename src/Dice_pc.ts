@@ -1,7 +1,7 @@
 import { Context, Logger, Schema, Session } from 'koishi'
 import { circle, Config, Character } from '.'
 
-export const name = 'Dice_st'
+export const name = 'Dice_pc'
 const log = new Logger('CircleDice/pc:')
 
 
@@ -11,20 +11,21 @@ export function apply(ctx: Context, config: Config) {
     .userFields(['id', 'player'])
     .channelFields(['gameSpace'])
     .option('st', '-s [content]')
-    .option('del', '-d [id]')
+    .option('del', '-d [skill]')
     .option('new', '-n [name]')
     .option('list', '-l')
-    .option('rm', '-r [name]')
+    .option('rm', '-r [id]')
     .option('view', '-v')
-    .option('bind', '-b')
+    .option('bind', '-b [id]')
     .option('nn', '-m [name]')
-    .option('all', '-a [bool]')
+    .option('all', '-a [id]')
     .action(async (argv) => {
       // 兼容常见语法
       if (argv.options.st) argv.args = ['st', argv.options.st]
       if (argv.options.del) argv.args = ['del', argv.options.del]
       if (argv.options.new) argv.args = ['new', argv.options.new]
       if (argv.options.rm) argv.args = ['rm', argv.options.rm]
+      if (argv.options.bind) argv.args = ['bind', argv.options.bind]
       if (argv.options.nn) argv.args = ['nn', argv.options.nn]
       if (argv.options.all) argv.args = ['all', argv.options.all]
 
@@ -34,58 +35,116 @@ export function apply(ctx: Context, config: Config) {
       let pcData = await ctx.database.get('circledice_pc', {
         master: session.user.id
       })
-
       switch (args[0]) {
-        case 'st':
+        case 'st': {
           let ch = await circle.getCh(user, channel?.gameSpace)
           stMain(args[1], ch, channel.gameSpace.rule)
           ch.save()
+          session.sendQueued('修改成功')
           break;
-        case 'del':
-          let pcDate_ID
-          if(args[2]){
-            pcDate_ID = await ctx.database.get('circledice_pc', {
-             master: session.user.id,
-             id: Number(args[1])
-           })
-          }
-          let pc = new Character(pcDate_ID[0], circle)
-          pc.del(args[2])
+        }
+        case 'del': {
+          let ch = await circle.getCh(user, channel?.gameSpace)
+          ch.del(args[1])
+          ch.save()
+          session.sendQueued('删除成功')
           break;
+        }
         case 'new':
           let newch = await circle.newCh(session.user)
-          if(args[1]){
+          if (args[1]) {
             newch.name = args[1]
-          }else{
+          } else {
             newch.name = '无名'
           }
-          session.sendQueued('创建成功')
+          channel.gameSpace.team[user.id] = newch.id
+          user.player.pcList[user.player.pcList.length] = newch.id
+          session.sendQueued('创建成功，id:' + newch.id)
           newch.save()
           break;
         case 'list':
           let pclist = session.username + '的人物卡列表为：\n'
           pcData.forEach(pc => {
-            pclist += (new Character(pc, circle)).name + '\n'
+            let ch = new Character(pc, circle)
+            pclist += ch.name + ' id:' + ch.id + '\n'
           })
-          session.send(pclist)
+          session.sendQueued(pclist)
           break;
         case 'rm':
-
+          if (!Number.isNaN(args[1])) {
+            let pclist: Number[] = new Array()
+            pcData.forEach(pc => {
+              let ch = new Character(pc, circle)
+              pclist[pclist.length] = ch.id
+            })
+            if (pclist.includes(Number(args[1]))) {
+              if (channel.gameSpace.team[user.id] == Number(args[1])) {
+                delete channel.gameSpace.team[user.id]
+              }
+              user.player.pcList.map((val, i) => {
+                if (val == Number(args[1])) {
+                  user.player.pcList.splice(i, 1)
+                }
+              })
+              ctx.database.remove('circledice_pc', { id: Number(args[1]) })
+              session.sendQueued('删除成功')
+            } else {
+              session.sendQueued('请删除自己的人物卡')
+            }
+          } else {
+            session.sendQueued('参数为角色卡id（可通过pc list查看）')
+          }
           break;
-        case 'view':
+        case 'view': {
+          let ch = await circle.getCh(user, channel?.gameSpace)
           let chData = ch.name + '的详细信息为：\n'
-          pc.assets.forEach((value, key) => {
-            chData += key + value + '\n'
+          ch.assets.forEach((value, key) => {
+            chData += key + ':' + value + '\n'
           })
+          session.sendQueued(chData)
           break;
+        }
         case 'bind':
-          //在当前群仅使用本人物卡
+          if (!Number.isNaN(args[1])) {
+            let pclist: Number[] = new Array()
+            pcData.forEach(pc => {
+              let ch = new Character(pc, circle)
+              pclist[pclist.length] = ch.id
+            })
+            if (pclist.includes(Number(args[1]))) {
+              channel.gameSpace.team[user.id] = Number(args[1])
+              session.sendQueued('绑定成功')
+            } else {
+              session.sendQueued('请绑定自己的人物卡')
+            }
+          } else {
+            session.sendQueued('参数为角色卡id（可通过pc list查看）')
+          }
           break;
-        case 'nn':
+        case 'nn': {
+          let ch = await circle.getCh(user, channel?.gameSpace)
           ch.name = args[1]
+          ch.save()
+          session.sendQueued('修改成功')
           break;
+        }
         case 'all':
-          //除bind群以外其他群聊全部统一人物卡
+          if(!Number.isNaN(args[1])){
+            let pclist: Number[] = new Array()
+            pcData.forEach(pc => {
+              let ch = new Character(pc, circle)
+              pclist[pclist.length] = ch.id
+            })
+            if (pclist.includes(Number(args[1]))) {
+              user.player.publicPc = Number(args[1])
+              session.sendQueued('全局角色卡绑定成功')
+            } else {
+              session.sendQueued('请绑定自己的人物卡')
+            }
+          }else{
+            session.sendQueued('参数为角色卡id（可通过pc list查看）')
+          }
+          
           break;
         default:
           session.sendQueued('请注意空格')
@@ -112,10 +171,10 @@ function stMain(text: string, ch: Character, rule = 'coc7') {
         '潜行': 20, '生存': 10, '游泳': 20, '投掷': 20, '追踪': 10, '驯兽': 5
       }
       Object.entries(tempSkill).forEach(x => ch.set(x[0], x[1]))
-      let c = textParse(text);log.info(c)
+      let c = textParse(text); log.info(c)
       Object.entries(c).forEach(
         x =>
-        ch.set(x[0], x[1]))
+          ch.set(x[0], x[1]))
       if (ch.has('闪避')) ch.set('闪避', Math.ceil(ch.get('敏捷') / 2));
       if (ch.has('db')) {
         let [t1, t2] = showDB(ch.get('力量'), ch.get('体型'))
