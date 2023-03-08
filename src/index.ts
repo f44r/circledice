@@ -141,10 +141,15 @@ export function apply(ctx: Context, config: Config) {
 
   log.info('CircleDice 已启动...正在尝试初始化数据')
   circle = new Circle(ctx, config)
-  ctx.plugin(Dice_r, config)
-  ctx.plugin(Dice_pc, config)
-  ctx.plugin(GameLog, config)
-  ctx.plugin(cmd, config)
+  circle.load()
+  .then(()=>{
+    log.info('骑士已上线，开始加载子插件……')
+    ctx.plugin(Dice_r, config)
+    ctx.plugin(Dice_pc, config)
+    ctx.plugin(GameLog, config)
+    ctx.plugin(cmd, config)
+    log.info('欢迎使用 CircleDice！')
+  })
 }
 
 
@@ -158,8 +163,6 @@ class Circle {
     this.ctx = ctx
     this.config = config
     this.chAll = new Map()
-    this.load()
-      .then(() => log.info('加载完成。'))
   }
 
   async load() {
