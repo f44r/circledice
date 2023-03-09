@@ -50,40 +50,48 @@ export function Dice_format(dice, index) {
 }
 
 
-export function Dice_ter(Dice) {
+export function Dice_ter(Dice, session) {
   let Dice_Arr = Dice_parsing(Dice.dice)
   Dice_Arr = Dice_analyze(Dice_Arr)
   let pattErr = /[^0-9+\-*\/]/i
+  let i18 = function (text: string, arr?: string[]) {
+    return arr ? session.text('circledice.r.' + text, arr) : session.text('circledice.r.' + text)
+  }
   if (!pattErr.test(Dice_Arr.join(""))) {
     let fun = new Function("return " + Dice_Arr.join(""))
     if (Dice_Arr.length > 2) {
       if (Dice.result == "") {
         Dice.ret = Math.ceil(fun())
-        return Dice_format(Dice, 0)
+        //return Dice_format(Dice, 0)
         //Dice.dice + "=" + Dice_Arr.join("") + "=" + Dice.res
+        return i18('rComplex', [Dice.dice, Dice_Arr.join(''), Math.ceil(fun())])
       } else {
         Dice.ret = Math.ceil(fun())
-        return Dice_format(Dice, 1)
+        //return Dice_format(Dice, 1)
         //"因" + Dice.result + "进行的骰点结果为：" + Dice.dice + "=" + Dice_Arr.join("") + "=" + Math.ceil(fun())
+        return i18('rResultComplex', [Dice.result, Dice.dice, Dice_Arr.join(''), Math.ceil(fun())])
       }
     } else {
       if (Dice.result == "") {
         Dice.ret = Math.ceil(fun())
-        return Dice_format(Dice, 2)
+        //return Dice_format(Dice, 2)
         // Dice.dice + "=" + Dice_Arr[0]
+        return i18('rSimple', [Dice.dice, Dice_Arr[0]])
       } else {
         Dice.ret = Math.ceil(fun())
-        return Dice_format(Dice, 3)
+        //return Dice_format(Dice, 3)
         // "因" + Dice.result + "进行的骰点结果为：" + Dice.dice + "=" + Dice_Arr[0]
+        return i18('rResultSimple', [Dice.result, Dice.dice, Dice_Arr[0]])
       }
     }
   } else {
-    return Dice_format(Dice, 4)
+    //return Dice_format(Dice, 4)
+    return i18('rError')
   }
 }
 
 
-export function Dice_msg(message) {
+export function Dice_msg(message, session) {
   let Dicepatt = /^[\(\)+\-*\/\da-z]+$/ig
   let Dice: { [key: string]: any } = {}; // 修改此处是为了符合 ts 强类型检查的要求，不会产生实际影响
   // let Dice = new Object;
@@ -92,7 +100,7 @@ export function Dice_msg(message) {
   } else if (Dicepatt.test(message)) {
     Dice.result = ""
     Dice.dice = message
-    return Dice_ter(Dice)
+    return Dice_ter(Dice, session)
   } else if (message.indexOf(" ") != -1) {
     let msgArr = message.split(" ")
     if (Dicepatt.test(msgArr[0])) {
@@ -110,20 +118,20 @@ export function Dice_msg(message) {
         Dice.dice = "1d" + msgArr[1]
       }
     }
-    return Dice_ter(Dice)
+    return Dice_ter(Dice, session)
   } else {
     Dice.result = message
     Dice.dice = "1d100"
-    return Dice_ter(Dice)
+    return Dice_ter(Dice, session)
   }
 }
 
 
 export function Dice_return(argv, message) {
   if (message == undefined) {
-    argv.session.send('<quote id="' + argv.session.messageId + '"/>' + Dice_ter(argv.options))
+    argv.session.send('<quote id="' + argv.session.messageId + '"/>' + Dice_ter(argv.options, argv.session))
   } else {
-    argv.session.send('<quote id="' + argv.session.messageId + '"/>' + Dice_msg(message))
+    argv.session.send('<quote id="' + argv.session.messageId + '"/>' + Dice_msg(message, argv.session))
   }
 }
 

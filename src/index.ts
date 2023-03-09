@@ -2,6 +2,7 @@ import { Context, Logger, Schema, User } from 'koishi'
 import * as Dice_r from './Dice_r'
 import * as Dice_pc from './Dice_pc'
 import * as GameLog from './Dice_log'
+import * as Dice_set from './Dice_set'
 import * as cmd from './cmd'
 import * as fs from 'fs/promises'
 import * as path from 'path'
@@ -147,6 +148,7 @@ export function apply(ctx: Context, config: Config) {
     ctx.plugin(Dice_r, config)
     ctx.plugin(Dice_pc, config)
     ctx.plugin(GameLog, config)
+    ctx.plugin(Dice_set, config)
     ctx.plugin(cmd, config)
     log.info('欢迎使用 CircleDice！')
   })
