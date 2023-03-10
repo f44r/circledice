@@ -61,24 +61,24 @@ export function Dice_ter(Dice, session) {
     let fun = new Function("return " + Dice_Arr.join(""))
     if (Dice_Arr.length > 2) {
       if (Dice.result == "") {
-        Dice.ret = Math.ceil(fun())
+        //Dice.ret = Math.ceil(fun())
         //return Dice_format(Dice, 0)
         //Dice.dice + "=" + Dice_Arr.join("") + "=" + Dice.res
         return i18('rComplex', [Dice.dice, Dice_Arr.join(''), Math.ceil(fun())])
       } else {
-        Dice.ret = Math.ceil(fun())
+        //Dice.ret = Math.ceil(fun())
         //return Dice_format(Dice, 1)
         //"因" + Dice.result + "进行的骰点结果为：" + Dice.dice + "=" + Dice_Arr.join("") + "=" + Math.ceil(fun())
         return i18('rResultComplex', [Dice.result, Dice.dice, Dice_Arr.join(''), Math.ceil(fun())])
       }
     } else {
       if (Dice.result == "") {
-        Dice.ret = Math.ceil(fun())
+        //Dice.ret = Math.ceil(fun())
         //return Dice_format(Dice, 2)
         // Dice.dice + "=" + Dice_Arr[0]
         return i18('rSimple', [Dice.dice, Dice_Arr[0]])
       } else {
-        Dice.ret = Math.ceil(fun())
+        //Dice.ret = Math.ceil(fun())
         //return Dice_format(Dice, 3)
         // "因" + Dice.result + "进行的骰点结果为：" + Dice.dice + "=" + Dice_Arr[0]
         return i18('rResultSimple', [Dice.result, Dice.dice, Dice_Arr[0]])

@@ -1,5 +1,6 @@
 import { Context, Logger, Schema, Session } from 'koishi'
 import { circle, Config, Character } from '.'
+import { Dice_parsing, Dice_analyze } from './roll/rollDice'
 
 export const name = 'Dice_pc'
 const log = new Logger('CircleDice/pc:')
@@ -129,7 +130,7 @@ export function apply(ctx: Context, config: Config) {
           break;
         }
         case 'all':
-          if(!Number.isNaN(+args[1])){
+          if (!Number.isNaN(+args[1])) {
             let pclist: Number[] = new Array()
             pcData.forEach(pc => {
               let ch = new Character(pc, circle)
@@ -141,16 +142,52 @@ export function apply(ctx: Context, config: Config) {
             } else {
               session.sendQueued('请绑定自己的人物卡')
             }
-          }else{
+          } else {
             session.sendQueued('参数为角色卡id（可通过pc list查看）')
           }
-          
+
           break;
         default:
           session.sendQueued('请注意空格')
       }
     })
 
+  ctx.command('sc [text]')
+    .userFields(['id', 'player'])
+    .channelFields(['gameSpace'])
+    .action(async (argv, text) => {
+      const { session } = argv
+      const { user, channel } = argv.session
+      let i18 = function (text: string, arr?: string[]) {
+        return arr ? session.text('circledice.sc.' + text, arr) : session.text('circledice.sc.' + text)
+      }
+
+      let textArr = text.split('/')
+      let skill = '意志'
+      let ch = await circle.getCh(user, channel?.gameSpace)
+      let san = ch.get(skill)
+      let r = Math.ceil(Math.random() * 100)
+      if (r == 100) {
+        let max = textArr[1].replace(/d/gi, '*')
+        let fun = new Function('return ' + max)
+        san -= fun()
+        session.sendQueued(i18('scBigFail', [ch.name, r + '/' + ch.get(skill), max + '=' + fun()]))
+      } else if (r > san) {
+        let Dice_Arr = Dice_parsing(textArr[1])
+        Dice_Arr = Dice_analyze(Dice_Arr)
+        let fun = new Function('return ' + Dice_Arr.join(''))
+        san -= fun()
+        session.sendQueued(i18('scFail', [ch.name, r + '/' + ch.get(skill), Dice_Arr.join('') + '=' + fun()]))
+      } else {
+        let Dice_Arr = Dice_parsing(textArr[0])
+        Dice_Arr = Dice_analyze(Dice_Arr)
+        let fun = new Function('return ' + Dice_Arr.join(''))
+        san -= fun()
+        session.sendQueued(i18('scSuccess', [ch.name, r + '/' + ch.get(skill), Dice_Arr.join('') + '=' + fun()]))
+      }
+      ch.set(skill,san)
+      ch.save
+    })
 }
 
 function stMain(text: string, ch: Character, rule = 'coc7') {
