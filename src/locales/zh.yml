@@ -32,9 +32,19 @@ commands:
     options:
       result: 骰点理由
       dice: 骰点式
-      check: 技能、武器鉴定（未实现）
-circledice:
-  log:
+  set:
+    description: 提供规则相关指令
+    usage: |-
+    options:
+      rule: 规则书规则，参数留空默认为“coc7”
+      room: 鉴定房规，参数留空默认为“1”
+  sc:
+    description: 提供sancheck指令
+    usage: |-
+      sc 成功扣san/失败扣san
+
+circledice: 
+  log: 
     pormptNot: 已取消相关操作
     timeout: |-
       看起来您还没考虑好
@@ -63,3 +73,20 @@ circledice:
       密码：{1}
     upLogNetcutNot: 上传文本分享网站 netcut 失败！
     upLogFail: 上传发生 Log 异常，请联系骰主。
+  ra: 
+    raBigSuccess: '{0} 进行的{1}鉴定结果为:{2}，大成功。'
+    raDifficuleSuccess: '{0} 进行的{1}鉴定结果为:{2}，极难成功。'
+    raHardSuccess: '{0} 进行的{1}鉴定结果为:{2}，困难成功。'
+    raSuccess: '{0} 进行的{1}鉴定结果为:{2}，成功。'
+    raFail: '{0} 进行的{1}鉴定结果为:{2}，失败。'
+    raBigFail: '{0} 进行的{1}鉴定结果为:{2}，大失败。'
+  r: 
+    rComplex: '{0}={1}={2}'
+    rSimple: '{0}={1}'
+    rResultComplex: '因{0}进行的骰点结果为：{1}={2}={3}'
+    rResultSimple: '因{0}进行的骰点结果为：{1}={2}'
+    rError: '好笨哦，骰点式写错了呀~'
+  sc: 
+    scSuccess: '{0}进行的sc鉴定，{1}，成功。扣除{2}点san值'
+    scFail: '{0}进行的sc鉴定，{1}，失败。扣除{2}点san值'
+    scBigFail: '{0}进行的sc鉴定，{1}，大失败。扣除{2}点san值'
