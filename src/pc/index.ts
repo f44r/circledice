@@ -1,6 +1,7 @@
 import { Context, Logger, Schema, Session } from 'koishi'
-import { circle, Config, Character } from '.'
-import { Dice_parsing, Dice_analyze } from './roll/rollDice'
+import { circle, Config } from '..'
+import { Dice_parsing, Dice_analyze } from '../roll/rollDice'
+import { Character } from "./Character";
 
 export const name = 'Dice_pc'
 const log = new Logger('CircleDice/pc:')
@@ -32,6 +33,8 @@ export function apply(ctx: Context, config: Config) {
 
       const { session, args } = argv
       const { user, channel } = argv.session
+      let rule = "coc7"
+      if (channel) rule = channel.gameSpace.rule;
 
       let pcData = await ctx.database.get('circledice_pc', {
         master: session.user.id
@@ -39,9 +42,9 @@ export function apply(ctx: Context, config: Config) {
       switch (args[0]) {
         case 'st': {
           let ch = await circle.getCh(user, channel?.gameSpace)
-          stMain(args[1], ch, channel.gameSpace.rule)
-          ch.save()
+          stMain(args[1], ch, rule)
           session.sendQueued('修改成功')
+          //ch.save()
           break;
         }
         case 'del': {
@@ -64,20 +67,13 @@ export function apply(ctx: Context, config: Config) {
           newch.save()
           break;
         case 'list':
-          let pclist = session.username + '的人物卡列表为：\n'
-          pcData.forEach(pc => {
-            let ch = new Character(pc, circle)
-            pclist += ch.name + ' id:' + ch.id + '\n'
-          })
-          session.sendQueued(pclist)
+          let t = ''
+          user.player.pcList.forEach(v => t += `[${v}]${circle.nameMap.get(v)}\n`)
+          session.sendQueued(t)
           break;
         case 'rm':
           if (!Number.isNaN(+args[1])) {
-            let pclist: Number[] = new Array()
-            pcData.forEach(pc => {
-              let ch = new Character(pc, circle)
-              pclist[pclist.length] = ch.id
-            })
+            const pclist = user.player.pcList
             if (pclist.includes(Number(args[1]))) {
               if (channel.gameSpace.team[user.id] == Number(args[1])) {
                 delete channel.gameSpace.team[user.id]
@@ -107,11 +103,7 @@ export function apply(ctx: Context, config: Config) {
         }
         case 'bind':
           if (!Number.isNaN(+args[1])) {
-            let pclist: Number[] = new Array()
-            pcData.forEach(pc => {
-              let ch = new Character(pc, circle)
-              pclist[pclist.length] = ch.id
-            })
+            const pclist = user.player.pcList
             if (pclist.includes(Number(args[1]))) {
               channel.gameSpace.team[user.id] = Number(args[1])
               session.sendQueued('绑定成功')
@@ -131,11 +123,7 @@ export function apply(ctx: Context, config: Config) {
         }
         case 'all':
           if (!Number.isNaN(+args[1])) {
-            let pclist: Number[] = new Array()
-            pcData.forEach(pc => {
-              let ch = new Character(pc, circle)
-              pclist[pclist.length] = ch.id
-            })
+            const pclist = user.player.pcList
             if (pclist.includes(Number(args[1]))) {
               user.player.publicPc = Number(args[1])
               session.sendQueued('全局角色卡绑定成功')
@@ -185,41 +173,22 @@ export function apply(ctx: Context, config: Config) {
         san -= fun()
         session.sendQueued(i18('scSuccess', [ch.name, r + '/' + ch.get(skill), Dice_Arr.join('') + '=' + fun()]))
       }
-      ch.set(skill,san)
+      ch.set(skill, san)
       ch.save
     })
 }
 
 function stMain(text: string, ch: Character, rule = 'coc7') {
-  switch (rule) {
-    case 'coc7':
-      const tempAtt = [
-        '力量', '敏捷', '意志',
-        '体质', '外貌', '教育',
-        '体型', '智力', '幸运']
-      tempAtt.forEach(x => ch.set(x, 0)) // 防止其他地方 set 时变成 number // 加入人物卡机制就无所谓了
-      const tempSkill = {
-        '会计': 5, '人类学': 1, '估价': 5, '考古学': 1, '取悦': 15, '攀爬': 20,
-        '计算机使用': 5, '乔装': 5, '汽车驾驶': 20, '电气维修': 10, '电子学': 1,
-        '话术': 5, '斗殴': 25, '手枪': 20, '急救': 30, '历史': 5, '恐吓': 15,
-        '跳跃': 20, '法律': 5, '图书馆使用': 20, '聆听': 20, '锁匠': 1, '机械维修': 10,
-        '医学': 1, '博物学': 10, '导航': 10, '神秘学': 5, '操作重型机械': 1, '说服': 10,
-        '驾驶': 1, '精神分析': 1, '心理学': 10, '骑术': 5, '妙手': 10, '侦查': 25,
-        '潜行': 20, '生存': 10, '游泳': 20, '投掷': 20, '追踪': 10, '驯兽': 5
-      }
-      Object.entries(tempSkill).forEach(x => ch.set(x[0], x[1]))
-      let c = textParse(text); log.info(c)
-      Object.entries(c).forEach(
-        x =>
-          ch.set(x[0], x[1]))
-      if (ch.has('闪避')) ch.set('闪避', Math.ceil(ch.get('敏捷') / 2));
-      if (ch.has('db')) {
-        let [t1, t2] = showDB(ch.get('力量'), ch.get('体型'))
-        ch.set('db', t1)
-        ch.set('体格', t2)
-      }
-      null
-      break;
+  let c = textParse(text);
+  log.info(c)
+  Object.entries(c).forEach(
+    x =>
+      ch.set(x[0], x[1]))
+  if (ch.has('闪避')) ch.set('闪避', Math.ceil(ch.get('敏捷') / 2));
+  if (ch.has('db')) {
+    let [t1, t2] = showDB(ch.get('力量'), ch.get('体型'))
+    ch.set('db', t1)
+    ch.set('体格', t2)
   }
 }
 

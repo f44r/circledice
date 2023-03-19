@@ -1,6 +1,6 @@
 import { Context, Logger, Session, h, Channel, Schema } from 'koishi'
-import { createClient } from 'webdav'
 import * as path from 'path'
+import * as fs from 'fs/promises'
 import { Config, randomString, circle } from '.'
 
 const log = new Logger('CiecleDice/log:')
@@ -46,7 +46,7 @@ type LogIt = {
   /** 平台 */
   platform: string
 }
-export const using = ['database', 'cron','webdav'] as const
+export const using = ['database', 'cron', 'webdav'] as const
 
 export function apply(ctx: Context, config: Config) {
   ctx.i18n.define('zh', require('./locales/zh.yml'))
@@ -330,17 +330,14 @@ async function upLogNetcut(ctx: Context, text: { text: string, pwd: string }, nu
   }
 }
 
-async function upLogWebdav(obj: { 'text': string, config: Config['GameLog'],name:string }) {
-  const cli = createClient(obj.config.webdavLink, {
-    'username': obj.config.webdavUsername,
-    'password': obj.config.webdavPassword
-  })
+async function upLogWebdav(obj: { 'text': string, config: Config['GameLog'], name: string, ctx: Context }) {
+  const cli = obj.ctx.webdav.cli
   const mpath = './circledice/log/'
   let b = await cli.exists(mpath)
- if(!b){
+  if (!b) {
     await cli.createDirectory(mpath)
- }
-  await cli.putFileContents(mpath+obj.name,obj.text)
+  }
+  await cli.putFileContents(mpath + obj.name, obj.text)
   null
 }
 
@@ -358,7 +355,7 @@ async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: 
   // 创建本地文件并上传
   let fileName = `${session.platform}-${session.channelId}-${session.argv.args[1] ?? logInfo.nowLogName}-${randomString(6)}.txt`
   let filePath = path.join(ctx.baseDir, config.logSaveDir, fileName)
-/*
+
   // 上传文件
   fs.writeFile(filePath, text)
     .then(() => {
@@ -373,7 +370,7 @@ async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: 
     .catch(e => {
       log.warn(e)
       session.send(i18('saveFail'))
-    })*/
+    })
 
   // 上传一份原始数据文件，便于解析
   //fs.writeFile(filePath + '.json', JSON.stringify({ 'ls': ls, 'data': data }))
@@ -389,12 +386,12 @@ async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: 
   }
 
   // webDav
-  if(config.isWebdav){
-      upLogWebdav({ 'text': text, 'config': config,'name':fileName })
-      .then(()=>{
-        session.send('上传完成'+config.webdavShare)
+  if (config.isWebdav) {
+    upLogWebdav({ 'text': text, 'config': config, 'name': fileName,'ctx':ctx })
+      .then(() => {
+        session.send('上传完成' + config.webdavShare)
       })
-      .catch((err)=>{
+      .catch((err) => {
         session.send('上传失败！')
         log.info(err)
       })
