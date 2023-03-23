@@ -12,25 +12,7 @@ export function apply(ctx: Context, config: Config) {
   ctx.command('pc')
     .userFields(['id', 'player'])
     .channelFields(['gameSpace'])
-    .option('st', '-s [content]')
-    .option('del', '-d [skill]')
-    .option('new', '-n [name]')
-    .option('list', '-l')
-    .option('rm', '-r [id]')
-    .option('view', '-v')
-    .option('bind', '-b [id]')
-    .option('nn', '-m [name]')
-    .option('all', '-a [id]')
     .action(async (argv) => {
-      // 兼容常见语法
-      if (argv.options.st) argv.args = ['st', argv.options.st]
-      if (argv.options.del) argv.args = ['del', argv.options.del]
-      if (argv.options.new) argv.args = ['new', argv.options.new]
-      if (argv.options.rm) argv.args = ['rm', argv.options.rm]
-      if (argv.options.bind) argv.args = ['bind', argv.options.bind]
-      if (argv.options.nn) argv.args = ['nn', argv.options.nn]
-      if (argv.options.all) argv.args = ['all', argv.options.all]
-
       const { session, args } = argv
       const { user, channel } = argv.session
       let rule = "coc7"
@@ -50,7 +32,7 @@ export function apply(ctx: Context, config: Config) {
         case 'del': {
           let ch = await circle.getCh(user, channel?.gameSpace)
           ch.del(args[1])
-          ch.save()
+          ch.#save()
           session.sendQueued('删除成功')
           break;
         }
@@ -61,14 +43,14 @@ export function apply(ctx: Context, config: Config) {
           } else {
             newch.name = '无名'
           }
-          channel.gameSpace.team[user.id] = newch.id
+          if (channel) channel.gameSpace.team[user.id] = newch.id
           user.player.pcList[user.player.pcList.length] = newch.id
           session.sendQueued('创建成功，id:' + newch.id)
-          newch.save()
+          newch.#save()
           break;
         case 'list':
           let t = ''
-          user.player.pcList.forEach(v => t += `[${v}]${circle.nameMap.get(v)}\n`)
+          //user.player.pcList.forEach(v => t += `[${v}]${circle.nameMap.get(v)}\n`)
           session.sendQueued(t)
           break;
         case 'rm':
@@ -117,7 +99,7 @@ export function apply(ctx: Context, config: Config) {
         case 'nn': {
           let ch = await circle.getCh(user, channel?.gameSpace)
           ch.name = args[1]
-          ch.save()
+          ch.#save()
           session.sendQueued('修改成功')
           break;
         }
@@ -174,7 +156,7 @@ export function apply(ctx: Context, config: Config) {
         session.sendQueued(i18('scSuccess', [ch.name, r + '/' + ch.get(skill), Dice_Arr.join('') + '=' + fun()]))
       }
       ch.set(skill, san)
-      ch.save
+      ch.#save
     })
 }
 

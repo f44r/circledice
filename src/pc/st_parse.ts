@@ -5,6 +5,12 @@ type Token = {
   V: string
 }
 
+export const ArithmeticSymbol = [
+  '+', '-', '*', '/', 'x', '^',
+  'd', 'a', 'c', 'f', '(', ')',
+  'k', 'q', 'p', 'b'
+]
+
 /**
  * 返回一个数组\
  * [\
@@ -21,14 +27,9 @@ function main(text: string) {
 
 function parse(text: string) {
   let arr: Token[] = []
-  let f = [
-    '+', '-', '*', '/', 'x', '^',
-    'd', 'a', 'c', 'f', '(', ')',
-    'k', 'q', 'p', 'b'
-  ]
   // 分离
   for (let s of text) {
-    if (f.includes(s)) {
+    if (ArithmeticSymbol.includes(s)) {
       arr.push({ T: 'count', V: s })
       continue
     }
@@ -59,31 +60,6 @@ function parse(text: string) {
   while (i < arr.length - 1) {
     const e1 = arr[i], e2 = arr[i + 1]
     if (e1.T == e2.T && cl.includes(e1.T)) {
-      arr.splice(i, 2, { T: e1.T, V: e1.V + e2.V })
-      continue
-    }
-    i++
-  }
-  // 合并 简单算式 如 1+2、1d50
-  // 我知道代码重复了，但是我实在不想手动迭代了，对现在的我来说心智负担太大，不好维护
-  i = 0
-  while (i < arr.length) {
-    const e0 = arr[i - 1], e1 = arr[i], e2 = arr[i + 1]
-    if ([e0, e1, e2].includes(undefined)) {
-      i++
-      continue
-    }
-    // 1d
-    if (e0.T == 'num' && e1.T == 'count') {
-      arr.splice(i - 1, 2, { T: e1.T, V: e0.V + e1.V })
-      continue
-    }
-    if (e1.T == e2.T && e1.T == 'count') {
-      arr.splice(i, 2, { T: e1.T, V: e1.V + e2.V })
-      continue
-    }
-    // d100
-    if (e1.T == 'count' && e2.T == 'num') {
       arr.splice(i, 2, { T: e1.T, V: e1.V + e2.V })
       continue
     }

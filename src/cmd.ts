@@ -59,7 +59,7 @@ export function apply(ctx: Context, config: Config) {
       var freq: number
 
       if (Number(text)) {
-        num = [Number(text)]
+        num = [text]
       }
       else {
         num = text.match(/[0-9]+/g);  // 获取骰点表达式中全部的数字，储存在数组num中
@@ -120,7 +120,7 @@ export function apply(ctx: Context, config: Config) {
       var freq: number
 
       if (Number(text)) {
-        num = [Number(text)]
+        num = [text]
       }
       else {
         num = text.match(/[0-9]+/g);  // 获取骰点表达式中全部的数字，储存在数组num中

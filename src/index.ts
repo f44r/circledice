@@ -7,6 +7,7 @@ import * as cmd from './cmd'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { Circle } from './Circle'
+import { parse2 } from './utils/cmd_parse2'
 
 interface GameSpaceData {
   isBotOn: boolean
@@ -29,10 +30,9 @@ interface CharacterData {
   master: number
   assets: [string, any][]
   /** 本来是想把历史记录也放到 assets 里的，但是为了防止有人 st 瞎改就提了一级 */
-  history: hiy
+  history: object
 }
 
-type hiy = { [ruleName: string]: { [skillName: string]: number } }
 
 declare module 'koishi' {
   interface Tables {
@@ -65,9 +65,9 @@ export const Config: Schema<Config> = Schema.intersect([
 export const name = 'circledice'
 export const using = ['database', 'cron'] as const
 export const log = new Logger('CircleDice:')
+export type Rule = 'coc7' | 'dnd5e'
 
-
-var circle: Circle;
+let circle: Circle;
 
 export function apply(ctx: Context, config: Config) {
   // 扩展数据模型
@@ -124,6 +124,18 @@ export function apply(ctx: Context, config: Config) {
 
   })
 
+  ctx.user().middleware((session, next) => {
+    let { parsed: { prefix, content } } = session
+    if (prefix) {
+      // 有前缀 但是没被默认解析处理到
+      const a = parse2(content)
+      if (a){
+        return session.execute(a)
+      }
+    }
+    return next()
+  })
+
   circle = new Circle(ctx, config)
   circle.load()
     .then(() => {
@@ -133,7 +145,6 @@ export function apply(ctx: Context, config: Config) {
       ctx.plugin(GameLog, config)
       ctx.plugin(Dice_set, config)
       ctx.plugin(cmd, config)
-      log.info('欢迎使用 CircleDice！')
     })
 }
 
@@ -147,4 +158,4 @@ export function randomString(length: number) {
   return result;
 }
 
-export { circle,hiy,PlayerData,GameSpaceData,CharacterData }
+export { circle,PlayerData,GameSpaceData,CharacterData }

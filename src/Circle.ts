@@ -21,33 +21,27 @@ export class Circle {
   config: Config
   chAll: Map<number, Character>
   knight: Character
-  nameMap: Map<number, Character>
+  ob: Character
 
   constructor(ctx: Context, config: Config) {
     this.ctx = ctx
     this.config = config
     this.chAll = new Map()
-    this.nameMap = new Map()
   }
 
   async load() {
     let [data] = await this.ctx.database.get('circledice_pc', 1)
     if (!data) {
-      await this.ctx.database.create('circledice_pc', {
-        master: 0,
-        assets: [
-          ['name', 'knight'],
-          ['nemeMap', [1, 'knight']]
-        ],
-        history: {}
-      })
-      let ID2 = await this.newCh({ id: 0 }) // 创建一张处理错误的角色卡 ID2
-      ID2.name = 'ID2'
+      await this.newCh({ id: 0 }) // 为了确保 master id 是 0 手动添加
+      await this.newCh({ id: 0 }) // 创建一张处理错误的角色卡 Observer
     }
     this.knight = await this.getChRaw(1)
+    this.ob = await this.getChRaw(1)
+    this.knight.name = 'Knight'
+    this.ob.name = 'Observer'
   }
 
-  async getChRaw(id: number) {
+  async getChRaw(id: number):Promise<Character> {
     if (this.chAll.has(id)) {
       return this.chAll.get(id)
     }
@@ -116,7 +110,7 @@ export class Circle {
     }
   }
 
-  randomString(length: number) {
+  randomSTR(length: number = 6) {
     let str = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
     let result = '';
     for (let i = length; i > 0; --i)

@@ -92,18 +92,22 @@ export function apply(ctx: Context, config: Config) {
 
   // 记录自己收到的消息
   ctx.on('message', async (session) => {
-    let data = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo', 'gameSpace'])
-    let user = await ctx.database.getUser(session.platform, session.userId, ['id'])
-    let a: [LogInfo, number] = [] as any // 因为数据库初始化也是在 message 事件下，有时获取不到数据，需要临时造一个
-    if (!data) {
-      a[0] = { isOn: false, nowLogName: 'recall', logList: [] }
-      a[1] = 2
-    } else {
-      a[0] = data.logInfo
-      a[1] = data.gameSpace.team[user?.id ?? 2] ?? 2 // gocq 可以上报自身事件，此时 user 为 undefined
+    let channel = await ctx.database.getChannel(session.platform, session.channelId, ['logInfo', 'gameSpace'])
+    let user = await ctx.database.getUser(session.platform, session.userId, ['id', 'player'])
+    let logInfo = channel.logInfo
+    session.username = 'Observer'
+    if (!(channel && user)) {
+      // 刚入群、数据都没来得及初始化，肯定不是 log 的内容
+      logInfo = { isOn: false, nowLogName: 'recall', logList: [] }
+    }else{
+      // 为了防止一些骰子被拉到千人群导致创建太多无用角色卡
+      if(user.player.publicPc){ // 存在公共角色ID 意味着肯定使用过 cd
+        let id = channel.gameSpace.team[user.id] ?? user.player.publicPc
+        let ch = await circle.getChRaw(id)
+        session.username = ch.name
+      }
     }
-    session.username = circle.knight.get(`ID:${a[1]}`)
-    let logIt = createLogIt(session, a[0])
+    let logIt = createLogIt(session, logInfo)
     if (logIt) {
       await ctx.database.create('msg_log', logIt)
       //log.info(logIt)
@@ -386,16 +390,16 @@ async function upLog(ctx: Context, session: Session, data: LogIt[], i18: (text: 
   }
 
   // webDav
-  if (config.isWebdav) {
-    upLogWebdav({ 'text': text, 'config': config, 'name': fileName,'ctx':ctx })
-      .then(() => {
-        session.send('上传完成' + config.webdavShare)
-      })
-      .catch((err) => {
-        session.send('上传失败！')
-        log.info(err)
-      })
-  }
+  /*   if (config.isWebdav) {
+      upLogWebdav({ 'text': text, 'config': config, 'name': fileName,'ctx':ctx })
+        .then(() => {
+          session.send('上传完成' + config.webdavShare)
+        })
+        .catch((err) => {
+          session.send('上传失败！')
+          log.info(err)
+        })
+    } */
 
   // todo 上传语雀文档
 }
@@ -409,11 +413,11 @@ namespace con {
     netcutPwd: string
     netcutOn: boolean
     // webdav
-    isWebdav: boolean
-    webdavLink: string
-    webdavUsername: string
-    webdavPassword: string
-    webdavShare: string
+    /*     isWebdav: boolean
+        webdavLink: string
+        webdavUsername: string
+        webdavPassword: string
+        webdavShare: string */
   }
 
   export const Config: Schema<Config> = Schema.object({
@@ -423,11 +427,11 @@ namespace con {
     netcutOn: Schema.boolean().default(false).description('是否上传到 netcut 方便分享？'),
     netcutPwd: Schema.string().default('pwd').description('分享到 netcut 时的密码'),
     // webdav
-    isWebdav: Schema.boolean().default(false).description('是否上传到支持 webdav 协议的网盘'),
-    webdavLink: Schema.string().description('webdav 网址'),
-    webdavUsername: Schema.string().description('webdav 账号'),
-    webdavPassword: Schema.string().description('webdav 密码'),
-    webdavShare: Schema.string().description('返回的分享链接？（自己在对应网盘上设置）'),
+    /*     isWebdav: Schema.boolean().default(false).description('是否上传到支持 webdav 协议的网盘'),
+        webdavLink: Schema.string().description('webdav 网址'),
+        webdavUsername: Schema.string().description('webdav 账号'),
+        webdavPassword: Schema.string().description('webdav 密码'),
+        webdavShare: Schema.string().description('返回的分享链接？（自己在对应网盘上设置）'), */
   }).description('Log 日志配置')
 
 }

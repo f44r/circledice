@@ -1,5 +1,5 @@
 import { Character } from "./Character";
-import { coc7_attribute_base, coc7_attribute_other } from "./config";
+import { coc7_attribute_base, coc7_attribute_other } from "./coc7_config";
 
 export function view(ch: Character, rule = 'coc7') {
   switch (rule) {
@@ -16,7 +16,7 @@ function view_coc7(ch: Character) {
     'wq': []
   }
   for (let [k, v] of ch.assets.entries()) {
-    if (k == 'name')
+    if (k[0] == '_')
       continue;
     if (coc7_attribute_base.includes(k)) {
       arr['base'].push(k + ':' + v)
@@ -36,5 +36,14 @@ function view_coc7(ch: Character) {
 }
 
 function format(arr: Array<string>, n = 3) {
-
+  let i = 1,str = ''
+  for (const a of arr){
+    if (i == n){
+      str += a + '\n'
+      i = 1
+    }else{
+      str += a + ' '
+    }
+  }
+  return str
 }
